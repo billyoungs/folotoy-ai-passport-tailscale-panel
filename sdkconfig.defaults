@@ -24,15 +24,48 @@ CONFIG_LV_COLOR_DEPTH_16=y
 CONFIG_LV_DEF_REFR_PERIOD=20
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
-# LVGL 内置 malloc 池大小(KB)。它是独立静态区、不与系统堆共享,配大了会白白占用 RAM。
-# 本 demo UI 简单,24KB 足够;若自建复杂界面出现绘制卡死/看门狗,调大此值。
-CONFIG_LV_MEM_SIZE_KILOBYTES=24
+CONFIG_LV_FONT_MONTSERRAT_28=y
+CONFIG_LV_FONT_MONTSERRAT_48=y
+# LVGL 内置 malloc 池大小(字节)。别被"独立静态区"的说法骗了:池子就是 .bss
+# 里挖走的一块,挖多少系统堆就少多少,而 C3 没有 PSRAM 可以退。
+# 这里原来写的是 CONFIG_LV_MEM_SIZE_KILOBYTES=24 —— LVGL 9.6 把该键标成
+# DEPRECATED、default 0,且不参与任何换算,真正生效的 CONFIG_LV_MEM_SIZE 一直是
+# 65536:配置说 24 KB、镜像里实际吃 64 KB,和当年 APP_PROJECT_VER 被静默丢弃是
+# 同一类故障(np-0.1.26 查清)。本版本先把数字写诚实,不调行为:池子饿死的症状
+# 是画面冻结而不是崩溃,具体留多少要等实机 lv_max 高水位出来再定。
+# 防复发:main/np_mem.c 侧的静态断言 + tools/check_repo.py 的 check_memory_knobs。
+CONFIG_LV_MEM_SIZE=65536
+
+# --- LVGL 文本(网络面板中文界面)---
+# UTF-8 解码 + 缺字占位符:占位符开发期保持开启,缺字看得见才好排查。
+CONFIG_LV_TXT_ENC_UTF8=y
+CONFIG_LV_USE_FONT_PLACEHOLDER=y
+
+# --- TLS(mbedTLS)---
+# 打开后 mbedTLS 先读记录头拿到真实长度再分配 RX 缓冲,发完/读完就缩回 16 B 缓存,
+# 而不是在 mbedtls_ssl_setup 里一次占有 16 KB+4 KB 直到连接关闭。本应用没有
+# keep-alive:每轮同步、每次拉详情都是新握手,那 20 KB 就是握手失败的现场(C3 上
+# 最大可分配块常常只剩 17 KB)。协议参数一个没动:SSL_IN_CONTENT_LEN 仍是 16384,
+# 因为 esp-tls 不注册 mfl_code、客户端不带 max_fragment_length 扩展,服务端合法地
+# 可以发 16 KB 记录 —— 砍上限的症状就是 -0x7200。KEEP_PEER_CERTIFICATE 也留着,
+# 详情页那几项证书标志靠它。
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+
+# --- SNTP(离线时长 "N 分钟前" 依赖校时)---
+CONFIG_LWIP_SNTP_MAX_SERVERS=2
 
 # --- 系统 ---
+# 应用版本:出镜像前用 ./tools/bump_version.sh 递增。留空时 ESP-IDF 会用
+# git 描述(如 488beda-dirty)代替,重复构建无法区分刷进去的是哪一版。
+# 开关必须一起打开:APP_PROJECT_VER 在 Kconfig 里 depends on FROM_CONFIG,
+# 只写字符串会被静默丢弃,镜像里仍然是 git 描述。
+CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
+CONFIG_APP_PROJECT_VER="np-0.2.11"
 CONFIG_FREERTOS_HZ=1000
 
 # --- Bluetooth LE / NimBLE ---
-# ESP32-C3 仅支持 BLE；示例只启用单连接 peripheral 所需的最小 host 配置。
+# 保留:模板的 BLE 参考示例(demo_ble.c)随固件编译需要它。
+# 网络面板本身不使用 BLE,链接期 --gc-sections 会剥掉未引用的实现。
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_ROLE_CENTRAL=n

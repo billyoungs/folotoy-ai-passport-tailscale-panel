@@ -5,6 +5,16 @@ managed_components/
 .vscode/
 .idea/
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secret-shaped files are never committed; git add -f only after review
+*.pem
+*.key
+.env
+
 # Generated repository-local links; canonical skill sources live in skills/.
 /.agents/skills/passport-develop
 /.agents/skills/passport-setup

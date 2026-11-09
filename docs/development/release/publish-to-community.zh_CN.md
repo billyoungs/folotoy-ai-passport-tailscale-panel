@@ -31,8 +31,9 @@ skill 的 `SKILL.md` 定义了精确流程：检查项目、准备中英文标�
 
 ## 你需要提供给助手的东西
 
-- **固件**：固定使用单个合并镜像 `build/FoloToy-AI-Passport-full.bin`，
-  且必须通过 `./tools/validate.sh --firmware` 与[当前配置的固件布局](../engineering/firmware-layout.zh_CN.md)。
+- **固件**：固定使用单个合并镜像
+  `build/FoloToy-AI-Passport-full-<版本号>.bin`（按钉住的
+  `CONFIG_APP_PROJECT_VER` 命名，门禁会删除更早的版本），且必须通过 `./tools/validate.sh --firmware` 与[当前配置的固件布局](../engineering/firmware-layout.zh_CN.md)。
   不得用 `idf.py build` 生成的应用单镜像替代。
 - **封面**：一张代表产品的 JPEG / PNG / WebP 图（≤ 10 MiB）。
 - **源码**：固件仓库的公开 HTTPS Git 项目页——GitHub、Gitee、GitLab、Codeberg 或其它公开可达的 HTTPS Git 仓库页。fork 所有者从其 fork 的来源页发布，从 `git remote -v` 解析。

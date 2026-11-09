@@ -38,6 +38,18 @@ ROOT_MARKDOWN_ALLOWLIST = {
 # These exemptions never change the input to sensitive-content/conflict checks.
 VENDORED_DOC_ROOTS: tuple[str, ...] = ()
 
+# Kconfig keys that parse, persist in sdkconfig, and then do nothing at all.
+DEAD_MEMORY_KNOBS = {
+    "CONFIG_LV_MEM_SIZE_KILOBYTES": "LVGL 9.6 consumes CONFIG_LV_MEM_SIZE in bytes",
+}
+
+# Values the firmware depends on for its memory budget; None means "any value,
+# but it must be written down rather than inherited from a component default".
+REQUIRED_MEMORY_KNOBS = {
+    "CONFIG_LV_MEM_SIZE": None,
+    "CONFIG_MBEDTLS_DYNAMIC_BUFFER": "y",
+}
+
 
 def vendored_document_roots(errors: list[str]) -> tuple[Path, ...]:
     """Validate explicit repository-relative directories; reject symlink roots."""
@@ -269,6 +281,40 @@ def check_action_pins(errors: list[str]) -> None:
                 errors.append(f"{path.relative_to(ROOT).as_posix()}:{line_number}: action must use a full commit SHA: {action}")
 
 
+def check_memory_knobs(errors: list[str]) -> None:
+    """Reject Kconfig memory knobs that silently do nothing, and require the
+    effective ones to be spelled out. LVGL 9.6 keeps CONFIG_LV_MEM_SIZE_KILOBYTES
+    as a deprecated default-0 option that never feeds CONFIG_LV_MEM_SIZE, so the
+    pool ran at 64 KiB while the config claimed 24 KiB."""
+    path = ROOT / "sdkconfig.defaults"
+    if not path.is_file():
+        errors.append("sdkconfig.defaults: missing, cannot check memory knobs")
+        return
+
+    assigned: dict[str, tuple[int, str]] = {}
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        match = re.match(r"\s*(CONFIG_[A-Z0-9_]+)\s*=\s*(.*?)\s*$", line)
+        if not match or line.lstrip().startswith("#"):
+            continue
+        assigned.setdefault(match.group(1), (line_number, match.group(2).strip("\"'")))
+
+    for key, why in DEAD_MEMORY_KNOBS.items():
+        if key in assigned:
+            line_number = assigned[key][0]
+            errors.append(
+                f"sdkconfig.defaults:{line_number}: {key} is inert ({why}); "
+                "set the effective key instead"
+            )
+    for key, expected in REQUIRED_MEMORY_KNOBS.items():
+        if key not in assigned:
+            errors.append(f"sdkconfig.defaults: {key} must be set explicitly")
+        elif expected is not None and assigned[key][1] != expected:
+            errors.append(
+                f"sdkconfig.defaults:{assigned[key][0]}: {key} must be {expected}, "
+                f"found {assigned[key][1]!r}"
+            )
+
+
 def check_issue_forms(errors: list[str]) -> None:
     issue_dir = ROOT / ".github" / "ISSUE_TEMPLATE"
     for name in ("feature_request.yml", "usage_question.yml"):
@@ -310,6 +356,7 @@ def main() -> int:
     check_community_document_links(files, errors)
     check_document_languages(files, errors, vendored_roots)
     check_action_pins(errors)
+    check_memory_knobs(errors)
     check_issue_forms(errors)
     check_sensitive_content(files, errors)
     check_conflict_markers(files, errors)

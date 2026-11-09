@@ -425,11 +425,15 @@ Run the static gate first, then the firmware gate:
 The static gate requires Python 3, a C compiler, `curl`, `tar`, and a SHA-256
 tool. It downloads a checksum-pinned `actionlint` release into `/tmp` when one is
 not installed. The firmware gate is the preferred build path. It uses an
-isolated temporary build and produces the verified `0x0` image at:
+isolated temporary build and produces the verified `0x0` image under a name that
+ends with the pinned firmware version:
 
 ```text
-build/FoloToy-AI-Passport-full.bin
+build/FoloToy-AI-Passport-full-<version>.bin
 ```
+
+Delivering a new image deletes any older `build/FoloToy-AI-Passport-full*.bin`, so
+only the current build remains in `build/`.
 
 For build-only agents with Docker already authorized, the official Espressif
 image is an alternative to a host installation:
@@ -473,7 +477,7 @@ Prefer flashing the verified merged image from offset `0x0`:
 
 ```bash
 python -m esptool --chip esp32c3 -p <port> -b 460800 \
-    write-flash 0x0 build/FoloToy-AI-Passport-full.bin
+    write-flash 0x0 build/FoloToy-AI-Passport-full-<version>.bin
 idf.py -p <port> monitor
 ```
 

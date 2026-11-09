@@ -21,6 +21,11 @@ This directory contains AI Passport engineering rules and reusable workflows, gr
 - [lvgl-chinese-fonts.md](engineering/lvgl-chinese-fonts.md): step-by-step CJK configuration, font generation/linking, fallback examples, glyph checks, and troubleshooting.
 - [wifi-provisioning.md](engineering/wifi-provisioning.md): Bluetooth-based Wi-Fi setup using the BLUFI reference branch, the companion mini program, and integration checks.
 
+## Applications
+
+- [tailscale-panel.md](apps/tailscale-panel.md): Tailscale device monitor app — screens, two-mode web provisioning, polling policy, and the Chinese glyph pipeline.
+- [tailscale-panel-history.md](apps/tailscale-panel-history.md): per-version delivery record for the network panel (one Conventional Commits-style entry per `np-*` version).
+
 ## CI
 
 - [CI-validation.md](ci/CI-validation.md): pull-request and main-branch checks.

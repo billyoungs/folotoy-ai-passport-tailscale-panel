@@ -370,11 +370,13 @@ grep -E 'CONFIG_IDF_TARGET|CONFIG_ESPTOOLPY_FLASHSIZE|CONFIG_ESP_CONSOLE_USB_SER
 
 静态门禁需要 Python 3、C 编译器、`curl`、`tar` 和 SHA-256 工具；未安装
 `actionlint` 时，会把带固定校验和的版本下载到 `/tmp`。固件门禁是默认优先的
-编译方式，它使用隔离的临时构建，并生成经过验证的 `0x0` 镜像：
+编译方式，它使用隔离的临时构建，并生成经过验证的 `0x0` 镜像，文件名末尾带版本号：
 
 ```text
-build/FoloToy-AI-Passport-full.bin
+build/FoloToy-AI-Passport-full-<版本号>.bin
 ```
+
+上一版的 `build/FoloToy-AI-Passport-full*.bin` 会在投递新镜像时被删除，目录里只留当前这一版。
 
 对于已经获得 Docker 使用授权、只需编译的 agent，乐鑫官方镜像可以替代主机安装：
 
@@ -409,7 +411,7 @@ sudo usermod -aG dialout "${USER}"
 
 ```bash
 python -m esptool --chip esp32c3 -p <port> -b 460800 \
-    write-flash 0x0 build/FoloToy-AI-Passport-full.bin
+    write-flash 0x0 build/FoloToy-AI-Passport-full-<版本号>.bin
 idf.py -p <port> monitor
 ```
 

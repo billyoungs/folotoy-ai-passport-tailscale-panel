@@ -33,9 +33,11 @@ from that checkout; never infer a developer-specific IDF path.
 
 ## Identify the exact deliverable
 
-The gate preserves `build/FoloToy-AI-Passport-full.bin` and a content-addressed
-bundle under `build/firmware/<full-bin-sha256>/`. Verify the bundle before
-handoff with:
+The gate preserves `build/FoloToy-AI-Passport-full-<version>.bin`, where
+`<version>` is the pinned `CONFIG_APP_PROJECT_VER`, and removes any older
+`FoloToy-AI-Passport-full*.bin` so only the current build is left. It also keeps
+a content-addressed bundle under `build/firmware/<full-bin-sha256>/`. Verify the
+bundle before handoff with:
 
 ```text
 python3 tools/archive_firmware.py verify <archive-directory>

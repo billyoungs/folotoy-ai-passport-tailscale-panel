@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.5.3,<5.6.0"
+  # mDNS 不在 ESP-IDF 5.5 的内置组件里,需从组件仓库拉取(LAN 配网用 netpanel.local)。
+  espressif/mdns: "^1.2.0"

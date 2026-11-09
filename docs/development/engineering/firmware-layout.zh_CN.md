@@ -43,7 +43,8 @@ ESP32-C3。默认布局不预留产品专用身份、OTA 或未使用的数据�
 额外镜像必须完整落在一个实际配置的分区内，允许从该分区内部偏移开始。
 仅声明资源分区不要求预装镜像，但一旦在 `flash_args` 列出镜像就必须校验它。
 
-只上传 `build/FoloToy-AI-Passport-full.bin`。名称相近的应用单镜像
+只上传 `build/FoloToy-AI-Passport-full-<版本号>.bin`：门禁按钉住的
+`CONFIG_APP_PROJECT_VER` 命名交付镜像，并删除更早的版本。名称相近的应用单镜像
 `build/FoloToy-AI-Passport.bin` 不包含 bootloader 和分区表。
 
 ## 烧录与已存数据

@@ -68,3 +68,11 @@ When generating a render that must match a reference, the common failure mode is
 - Generated images are not brand assets by default. Unless the user explicitly requests a brand render, AI-generated images are project assets and belong in `assets/images/`, not here.
 - Only register a render in this directory when the user specifically requests a brand visual: add a row to the tables above and link the generated file here.
 - Keep product facts (labels, model names, hardware features) accurate; do not invent hardware that is not present in the references. On-screen status text is illustrative and not a fixed requirement.
+
+## Related copy
+
+- [tailscale-panel-promotion.md](tailscale-panel-promotion.md) — the complete listing
+  copy for the "Tailscale Monitor Card" play: text introduction, end-user usage
+  guide, and cover / UI mockup image prompts. Its device-render prompts follow
+  this directory's reference-based redraw workflow (reference as the base,
+  repaint the screen only).

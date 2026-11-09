@@ -165,6 +165,7 @@ class VendoredDocumentationTest(unittest.TestCase):
             patch.object(CHECKS, "git_files", return_value=files),
             patch.object(CHECKS, "check_required_files"),
             patch.object(CHECKS, "check_action_pins"),
+            patch.object(CHECKS, "check_memory_knobs"),
             patch.object(CHECKS, "check_issue_forms"),
             contextlib.redirect_stderr(io.StringIO()) as output,
         ):
@@ -330,11 +331,69 @@ class CommunityDocumentLinksTest(unittest.TestCase):
             patch.object(CHECKS, "git_files", return_value=[page]),
             patch.object(CHECKS, "check_required_files"),
             patch.object(CHECKS, "check_action_pins"),
+            patch.object(CHECKS, "check_memory_knobs"),
             patch.object(CHECKS, "check_issue_forms"),
             contextlib.redirect_stderr(io.StringIO()) as output,
         ):
             self.assertEqual(CHECKS.main(), 1)
         self.assertIn("language switch must use a Markdown link", output.getvalue())
+
+
+class MemoryKnobGuardTest(unittest.TestCase):
+    """The LVGL pool key once claimed 24 KiB while the image reserved 64 KiB.
+    A Kconfig entry that parses, lands in sdkconfig, and then does nothing is
+    worse than no entry at all, so the repo declares what it actually gets."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="ai-passport-knob-tests-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        root_patch = patch.object(CHECKS, "ROOT", self.root)
+        root_patch.start()
+        self.addCleanup(root_patch.stop)
+
+    def errors_for(self, text: str) -> list[str]:
+        (self.root / "sdkconfig.defaults").write_text(text, encoding="utf-8")
+        errors: list[str] = []
+        CHECKS.check_memory_knobs(errors)
+        return errors
+
+    def test_inert_key_and_missing_knobs_are_rejected(self) -> None:
+        errors = self.errors_for("CONFIG_LV_MEM_SIZE_KILOBYTES=24\n")
+        self.assertEqual(len(errors), 3, errors)
+        self.assertTrue(any("CONFIG_LV_MEM_SIZE_KILOBYTES is inert" in e for e in errors))
+        self.assertTrue(any("CONFIG_LV_MEM_SIZE must be set" in e for e in errors))
+        self.assertTrue(any("CONFIG_MBEDTLS_DYNAMIC_BUFFER must be set" in e for e in errors))
+
+    def test_declared_knobs_pass(self) -> None:
+        self.assertEqual(
+            self.errors_for(
+                "CONFIG_LV_MEM_SIZE=65536\nCONFIG_MBEDTLS_DYNAMIC_BUFFER=y\n"
+            ),
+            [],
+        )
+
+    def test_disabled_dynamic_buffer_is_rejected_by_value(self) -> None:
+        errors = self.errors_for(
+            "CONFIG_LV_MEM_SIZE=24576\nCONFIG_MBEDTLS_DYNAMIC_BUFFER=n\n"
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("CONFIG_MBEDTLS_DYNAMIC_BUFFER must be y", errors[0])
+
+    def test_commented_out_keys_are_neither_dead_nor_declared(self) -> None:
+        errors = self.errors_for(
+            "# CONFIG_LV_MEM_SIZE_KILOBYTES=24\n"
+            "# CONFIG_MBEDTLS_DYNAMIC_BUFFER is not set\n"
+        )
+        self.assertFalse(any("inert" in e for e in errors), errors)
+        self.assertTrue(any("CONFIG_LV_MEM_SIZE must be set" in e for e in errors))
+        self.assertTrue(any("CONFIG_MBEDTLS_DYNAMIC_BUFFER must be set" in e for e in errors))
+
+    def test_repository_defaults_satisfy_the_guard(self) -> None:
+        with patch.object(CHECKS, "ROOT", ROOT):
+            errors: list[str] = []
+            CHECKS.check_memory_knobs(errors)
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 
 # Assets
 
-This directory stores reusable fonts, images, music, sound effects, and battery profiles, organized by asset type.
+This directory stores reusable fonts, icons, images, music, sound effects, and battery profiles, organized by asset type.
 
 Keep each asset in the matching subdirectory and document its destination, naming, integration method, and source/license. Do not mix binary assets with Markdown documentation.
 
@@ -16,6 +16,13 @@ Store reusable font files and generated font sources in `fonts/`.
 - Document the source, license, character range, conversion command, and expected destination.
 - Check Flash and internal-RAM impact before adding a font; the ESP32-C3 has no PSRAM.
 - Do not commit fonts whose license does not permit redistribution.
+- The tailscale-panel subset fonts and their regeneration pipeline are documented in [`fonts/README.md`](fonts/README.md).
+
+## Icons
+
+Store hand-authored display graphics and the scripts that serialize them.
+
+- [`icons/`](icons/) holds the network panel's operating-system marks: a 12 × 12 pixel font generated from readable ASCII grids, in private-use codepoints deliberately kept outside the text glyph inventory. It also keeps a copy of the official Tailscale mark, used only as the trace reference for `main/np_logo.c`. See [`icons/README.md`](icons/README.md).
 
 ## Images
 

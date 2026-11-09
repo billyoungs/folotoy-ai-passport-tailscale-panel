@@ -27,7 +27,8 @@ The skill's `SKILL.md` defines the exact workflow: inspect the project, prepare 
 ## What the assistant will need from you
 
 - **Firmware**: the single merged ESP image
-  `build/FoloToy-AI-Passport-full.bin`. It must pass
+  `build/FoloToy-AI-Passport-full-<version>.bin` (named after the pinned
+  `CONFIG_APP_PROJECT_VER`; the gate removes older builds). It must pass
   `./tools/validate.sh --firmware`, including the
   [configured firmware layout](../engineering/firmware-layout.md).
   Never substitute the app-only `.bin` produced by `idf.py build`.

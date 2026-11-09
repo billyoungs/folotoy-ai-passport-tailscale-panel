@@ -28,7 +28,9 @@ description: 验证并打包 FoloToy AI Passport 固件，交付已校验的合�
 
 ## 确定准确的交付产物
 
-门禁保留 `build/FoloToy-AI-Passport-full.bin`，以及按内容哈希归档的
+门禁保留 `build/FoloToy-AI-Passport-full-<版本号>.bin`，其中 `<版本号>` 就是钉住的
+`CONFIG_APP_PROJECT_VER`，并删除更早的 `FoloToy-AI-Passport-full*.bin`，目录里只
+留当前这一份。同时保留按内容哈希归档的
 `build/firmware/<full-bin-sha256>/`。交接前运行：
 
 ```text
