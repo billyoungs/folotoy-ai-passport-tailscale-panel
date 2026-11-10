@@ -922,7 +922,25 @@ content-addressed `build/firmware/<sha256>/` bundles.
   after Wi-Fi is up, whether the device boots clean, auto-recovers from the
   retry page, or the user retries manually).
 
-## Standing deferrals (as of np-0.2.14)
+## np-0.2.15 — feat(aod): remember the pre-AOD brightness and restore it on wake
+
+- The always-on display already fixed its backlight at 20%. This version makes
+  the transition explicit: `enter_screen_off()` first captures the configured
+  brightness (`s_brightness_saved = app_cfg_brightness()`), then enters the
+  AOD at 20% (or full off when AOD is disabled). Waking restores
+  `s_brightness_saved`, so the 20% AOD level never leaks into the normal
+  display and the pre-AOD brightness is always what comes back, regardless of
+  what the device booted at.
+- `--static` is green (`Repository checks` 434 files / `Host tests` PASS).
+  Image `build/FoloToy-AI-Passport-full-np-0.2.15.bin`, 2067824 bytes (+16 vs
+  np-0.2.14), sha256
+  `52c4dc6e9bf6b1b772248f1762d627ba9c4c645f676324208b2cb95622c14679`; map
+  `.dram0.bss` `0x1b5c8` (unchanged), `work_mem_int` `0x10000` unchanged.
+  Embedded version check: PASS (np-0.2.15). **Awaiting a device flash**
+  (checks: AOD stays at 20% and waking returns to the configured brightness;
+  the np-0.2.14 credentials-jump re-test).
+
+## Standing deferrals (as of np-0.2.15)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -939,8 +957,9 @@ content-addressed `build/firmware/<sha256>/` bundles.
   np-0.2.6 / np-0.2.7 / np-0.2.8 / np-0.2.9 / np-0.2.10 / np-0.2.11 device-test
   items are all pending the user's flash authorisation. np-0.2.12 and np-0.2.13
   were flashed: the roaming and AOD checks ran on device, and the
-  credentials-jump regression was fixed in np-0.2.14; np-0.2.14's device
-  re-test awaits flash authorisation.
+  credentials-jump regression was fixed in np-0.2.14, which was then flashed
+  and confirmed to open the credentials LAN page correctly. np-0.2.15 (AOD
+  brightness handling) awaits a device flash.
 
 ## Repository rename (2026-11-09)
 

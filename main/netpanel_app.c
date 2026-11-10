@@ -99,6 +99,7 @@ static bool s_prompt_dismissed; // 本次开机还弹不弹"补填凭据"提示
 static int64_t s_last_activity_ms;
 static bool s_screen_off;
 static bool s_aod_active;
+static uint8_t s_brightness_saved; // 熄屏前记住的屏幕亮度,唤醒时按它恢复
 static char s_prov_a[40], s_prov_b[40];
 static bool s_prov_ap; // 当前/上一次配置会话是不是引导热点
 static np_prompt_t s_prov_lines;   // 配对码页正显示的四行
@@ -605,7 +606,8 @@ static void handle_key(const app_ev_t *key)
     // 熄屏唤醒:任意键先恢复背光,再继续正常分发。黑屏只是背光关了,原视图还在;
     // AOD 页则由 np_ui_handle_key 自己切回列表。每次按键都刷新最后活动时刻。
     if (s_screen_off) {
-        bsp_display_backlight(app_cfg_brightness());
+        // 恢复到进熄屏之前记住的那一档亮度(AOD 固定 20%,不能把 20 留在常态)。
+        bsp_display_backlight(s_brightness_saved);
         s_screen_off = false;
         s_aod_active = false;
     }
@@ -942,6 +944,10 @@ static void poll_task(void *arg)
 // (低亮度常显),否则直接关背光。只在 ST_RUN 调(配网页/热点页要一直亮着读信息)。
 static void enter_screen_off(void)
 {
+    // 熄屏前把当前设定的亮度记住:熄屏显示(AOD)固定用 20%,唤醒时要回到
+    // 进熄屏之前那一档,而不是每次醒来都重读配置(两者平时一致,但明确记住
+    // 才能保证"回到进熄屏前那档"这件事本身成立)。
+    s_brightness_saved = app_cfg_brightness();
     if (app_cfg_aod_enabled()) {
         if (bsp_lvgl_lock(500)) {
             char hm[8];

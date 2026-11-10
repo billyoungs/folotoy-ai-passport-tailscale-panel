@@ -927,7 +927,9 @@ to the list and persists in one go.
 - **Auto-sleep timeout:** tiers = never / 1 / 5 / 10 / 30 minutes / 1 / 2 hours
   (`offm`, minutes, 0 = never). When the timeout fires with AOD off,
   `bsp_display_backlight(0)` blanks the screen; with AOD on it switches to the
-  AOD page at 20% brightness.
+  AOD page at 20% brightness. The pre-AOD brightness is remembered first
+  (`s_brightness_saved`) and restored on wake, so the 20% AOD level never leaks
+  back into the normal display (`np-0.2.15`).
 - **Always-on display:** when on (`aod` = 1), the AOD page is truly centred
   horizontally (the labels auto-size rather than sitting left-aligned inside a
   fixed 240 px box): the current time `HH:MM` in a large font (Montserrat 48);
@@ -947,8 +949,8 @@ to the list and persists in one go.
   on a detail page, keeps its menu as well.
 - The sleep check runs only in the normal RUN state, driven by the 1-second
   tick of `app_task`; provisioning and hotspot pages never sleep. Any key wakes:
-  the backlight is restored, blank mode returns to the previous view, and AOD
-  returns to the list.
+  the backlight is restored to the remembered pre-AOD brightness, blank mode
+  returns to the previous view, and AOD returns to the list.
 - Validation, tier labels and the sleep check live in the pure-logic
   `np_display_cfg` (host-testable); the `bri` / `offm` / `aod` keys are read and
   written through `app_cfg`.
