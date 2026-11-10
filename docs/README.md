@@ -1,6 +1,6 @@
 **English** · [简体中文](/docs/README.zh_CN.md)
 
-<h1 align="center">FoloToy AI PASSPORT</h1>
+<h1 align="center">FoloToy AI Passport — Network Monitor Panel</h1>
 
 <p align="center">
   <picture>
@@ -10,213 +10,194 @@
 </p>
 
 <p align="center">
-  <strong>Wear it. Flash it. Make it anything.</strong><br>
-  Simple and open. Anyone can build.
+  <strong>Wear your tailnet status.</strong><br>
+  A battery-powered Tailscale dashboard you can hold in one hand.
 </p>
 
 <p align="center">
-  <a href="/docs/README.md"><img src="https://img.shields.io/badge/Open-firmware-14b8a6?style=flat-square" alt="Open firmware"></a>
-  <a href="/docs/README.md"><img src="https://img.shields.io/badge/Wearable-AI-2563eb?style=flat-square" alt="Wearable AI"></a>
-  <a href="/docs/development/ai-guide.md"><img src="https://img.shields.io/badge/Built-for_makers-f97316?style=flat-square" alt="Built for makers"></a>
+  <a href="development/apps/tailscale-panel.md"><img src="https://img.shields.io/badge/API-Tailscale%20Admin%20API-2563eb?style=flat-square" alt="Tailscale Admin API"></a>
+  <a href="development/apps/tailscale-panel.md"><img src="https://img.shields.io/badge/Provisioning-Wi-Fi%20hotspot%20%E2%80%94%20no%20cloud-14b8a6?style=flat-square" alt="Local Wi-Fi provisioning"></a>
+  <a href="hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md"><img src="https://img.shields.io/badge/Board-ESP32-C3%20%C2%B7%20240%C3%97320-f97316?style=flat-square" alt="ESP32-C3 board"></a>
   <a href="/LICENSE"><img src="https://img.shields.io/badge/License-MIT-64748b?style=flat-square" alt="MIT License"></a>
 </p>
 
 <p align="center">
-  <a href="https://ai-passport.folotoy.cn/en/">Website</a> ·
-  <a href="#start-development-with-one-requirement">Start building</a> ·
-  <a href="/docs/reference/README.md">Community projects</a> ·
+  <a href="development/apps/tailscale-panel.md">Panel guide</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#three-key-navigation">Three-key navigation</a> ·
+  <a href="#3-enter-tailscale-credentials">Tailscale credentials</a> ·
   <a href="#documentation-index">Documentation</a>
 </p>
 
 ---
 
-**FoloToy AI Passport** is an open wearable AI platform made for people to shape,
-remix, and create. Start with a simple idea, build your own experience, and make
-it anything—from a pocket companion to something no one has imagined yet.
+## What this build is
 
-<p align="center">
-  <img src="../assets/images/home.jpg" alt="FoloToy AI Passport wearable device shown from the front, side, and back." width="100%">
-</p>
-
-| Open and remixable | Easy to start | Yours to create |
-| --- | --- | --- |
-| Open firmware and reusable examples give you room to shape your own experience. | Start from an idea and follow clear guides to make it real, even if this is your first build. | Make a companion, a tool, a game—or anything you can imagine. |
-
-## Find your starting point
-
-| I want to… | Start here |
-| --- | --- |
-| Use the device or try an official play | [Getting started](https://ai-passport.folotoy.cn/guides/getting-started/) · [Official plays](https://ai-passport.folotoy.cn/plays/) |
-| Build a custom application with AI | [Agent instructions](../AGENTS.md) · [AI development guide](development/ai-guide.md) · [Required skills](../skills/README.md) |
-| Prepare my environment and build firmware | [Environment setup](/docs/development/engineering/environment-setup.md) · [Build and test](development/engineering/build-and-test.md) |
-| Explore the board or contribute | [Hardware guide](hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md) · [Contributing](../.github/CONTRIBUTING.md) |
+This firmware turns a FoloToy AI Passport board — ESP32-C3, 8 MB Flash, no
+PSRAM, a 240 × 320 RGB565 display, three physical buttons (`UP` / `DOWN` /
+`OK`) and a CW2017-monitored battery-powered case (see the
+[hardware guide](hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md)) — into a
+small Tailscale management dashboard. It polls the Tailscale Admin API over
+HTTPS (TLS trusts the pinned ISRG Root X1 CA), and shows your tailnet's
+device list on the screen: online state, address, OS, client version, key
+expiry, last connection and join time, plus relay latency and advertised
+routes for the device you inspect. Wi-Fi and credentials are provisioned
+through a temporary web page served by the device itself — no serial tooling,
+and no third-party relay in between.
 
 > [!IMPORTANT]
-> `main` is a minimal, runnable **hardware-test baseline**, not a finished application.
-> Derivative applications must design their own UI; the current demo test menu and
-> screens must not be reused. BSP APIs and non-UI logic remain reusable.
+> The layer underneath is **FoloToy AI Passport**, an open MIT-licensed
+> wearable AI platform: AI coding agents build custom apps for it following
+> `AGENTS.md` and its guides. This repository hosts one such **derivative
+> application** — the network-engineer monitor panel. `main` stays the clean
+> upstream baseline, and this panel lives on the `feature/network-engineer-panel`
+> branch. Upstream introduction and development workflow:
+> [development guide](development/README.md) ·
+> [AI development guide](development/ai-guide.md) ·
+> [community projects](reference/README.md).
 
-## Start development with one requirement
+## Quick start
 
-1. Open the repository in your AI coding tool and have it read [`AGENTS.md`](../AGENTS.md).
-2. Let it check and install the [five required skills](../skills/README.md), with any permissions your environment requires.
-3. Describe what you want to build. Start from `main` on a new `feature/*` branch.
+### 1. Flash
 
-Copy this prompt and adapt it to your idea:
+Flash the merged image to `0x0`:
 
-```text
-Build an offline habit-tracking application for FoloToy AI Passport.
-Use the three physical buttons and the 240×320 display, and preserve records across power loss.
-Start from `main`, create a `feature/*` branch, and develop the application there.
-Follow AGENTS.md and docs/hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md.
-Inspect relevant demo branches and docs/reference/ application archives first.
-Keep hardware logic in components/bsp and application logic in main.
-Deliver a runnable implementation with tests; report build results,
-unexecuted device checks, and on-device acceptance steps separately.
-Redesign the application's UI; do not use the current demo test menu or screens.
+```bash
+esptool.py --chip esp32c3 write_flash 0x0 build/FoloToy-AI-Passport-full-<version>.bin
 ```
 
-Before starting, check [`docs/reference/`](reference/README.md) for an existing or
-reference application and previously recorded, reusable experience, and the demo
-branches. See what is already built and reusable.
+No backup of a previous firmware is needed, but a merged flash resets the
+NVS namespace where Wi-Fi passwords and Tailscale credentials are stored —
+after flashing you provision them again (steps 2–3 below).
 
-<details>
-<summary><strong>Write a clearer requirement</strong> — pages, controls, data, and acceptance</summary>
+### 2. First boot: join a Wi-Fi network (bootstrap hotspot)
 
-The more specific the requirement, the more likely the assistant is to implement it correctly in one pass. Useful details include:
+With no stored credentials the device boots straight into an open hotspot
+`Passport-<xxxx>` and shows on screen:
 
-- User flow: what each page displays and what short press, double press, and long press do for each button.
-- State and data: whether the application needs timing, persistence across power loss, networking, recording, or communication with a computer.
-- Experience goals: fonts, colors, animation, sound, response time, and error states.
-- Constraints: application navigation and controls, permitted dependencies, and Flash/data usage. The baseline test menu is not an application UI option.
-- Acceptance criteria: which behaviors require automated tests and which must be observed on real hardware.
+- the SSID (`Passport-<xxxx>`) — **no password**, since `np-0.2.2`
+- the address to open: `http://192.168.4.1`
 
-When details are omitted, the assistant may choose conservative defaults that do not change the product direction, but it must list those assumptions in the delivery. Decisions involving new wiring, electrical safety, board revisions, or irreversible data formats require confirmation first.
+Join the hotspot with your phone or laptop; the configuration page opens by
+itself (captive portal, no path to type). Then:
 
-</details>
+- press **Rescan** to list nearby networks — the form does not scan on load;
+  the radio sweep costs a second or two.
+- pick a network, enter its password, press **Save and connect**: one
+  request, the session closes, the device joins and moves on.
 
-> [!NOTE]
-> A successful build is not hardware validation. Test the application on a real
-> device after implementation; flashing requires your approval. Deliver a verified
-> merged `full.bin` for flashing at `0x0`. No original-firmware backup is required,
-> but a merged flash may reset stored data. See the [flashing policy](development/engineering/firmware-layout.md#flashing-and-stored-data).
+You can also type an SSID by hand if the list is wrong. The hotspot keeps the
+same SSID across reboots until the Wi-Fi save succeeds, so your paired phone
+does not lose track of it. While the link is down, the device-list screen
+doubles as the retry screen: **OK** retries the connection, **OK long-press**
+returns to the hotspot so a mistyped password can be corrected.
 
-## Demo branches are design cases, not a feature pile
+### 3. Enter Tailscale credentials
 
-Each `demo/*` branch evolves the baseline into an independent application. The branches demonstrate how specific problems were solved. New applications should normally branch from `main` and consult relevant examples instead of merging multiple demos wholesale.
+When Wi-Fi is up and no Tailscale credentials are stored, the device starts
+one LAN configuration session by itself and the screen shows:
 
-The menu and `demo_*.c` pages on `main` are hardware-capability tests, not an application UI. Every derivative application must redesign and implement its own screens and interaction flow; using the current test menu, screens, or visual shell is prohibited. Renaming or recoloring them does not satisfy this requirement. BSP APIs, ordinary LVGL widgets, lifecycle patterns, and isolated logic may still be reused. See the [mandatory UI redesign rule](development/ai-guide.md#mandatory-ui-redesign-for-derivative-applications); maintenance of the baseline hardware-test demo itself is a separate task.
+- what to do: *enter the Tailscale credentials from another device*
+- a **6-digit pairing code**
+- the direct address to open, e.g. `http://192.168.1.42`
 
-| Branch | Application | Patterns worth reusing |
+Open that address in a browser on another device, enter the code, and pick
+your credential type:
+
+| Option | When to use | Validity |
 | --- | --- | --- |
-| `demo/stopwatch` | Stopwatch | Minimal timer application, separation of pure logic from LVGL, host-side logic tests |
-| `demo/cat-themed-pomodoro-timer` | Cat-themed Pomodoro timer | Monotonic time, pause/resume, NVS persistence, a detailed PRD, and a state model |
-| `demo/rock-paper-scissors` | Rock paper scissors | RGB565 image assets, asset-generation scripts, and Flash resource tradeoffs |
-| `demo/tetris-game` | Three-button Tetris | Real-time game loop, low-latency `PRESS` input, partial refresh, a pure game model, audio, and microphone interaction |
-| `demo/claude-buddy-port` | Desktop AI hardware companion | Replacing the demo menu with a complete application, encrypted BLE, protocol parsing, state reduction, task communication, and extensive host tests |
+| **API access token** `tskey-…` | personal key — simplest | up to 90 days |
+| **OAuth client** `client_id` + `client_secret` | read-only scope; the device exchanges a short-lived JWT (~1 h) automatically | automatic |
 
-<details>
-<summary><strong>Explore a demo and create your application branch</strong></summary>
+Create the API key in the Tailscale admin console (ACL page → add a key);
+it needs the power to read your tailnet's device list. Press **Save** — when
+the saved fields carry Tailscale credentials, the session closes and the
+panel syncs immediately, so the screen itself tells you whether the
+credentials work.
 
-Inspect an example without switching the current working tree:
+Security highlights: stored secrets are never echoed back (the web page shows
+only a masked 4-character tail), password inputs on the device screen are
+plain text on purpose, every LAN write requires the displayed pairing code,
+and the config server closes after 10 minutes idle (30-minute absolute cap).
+Credentials are persisted in NVS **in plaintext** — physical flash reads can
+recover them; flash encryption would burn irreversible eFuses, so this is an
+accepted trade-off, not an oversight.
 
-```bash
-git branch -r --list 'origin/demo/*'
-git diff main...origin/demo/tetris-game -- main components tests
-git show origin/demo/tetris-game:main/demo_tetris.c
-```
+### 4. The device list appears
 
-Start a new application. This repository hosts several independent projects on one baseline: after starting from `main`, create a `feature/*` branch and develop the application there — do not develop directly on `main`. Each project's final branch is `feature/*` (e.g. `feature/my-passport-app`), kept separate so `main` stays a clean upstream baseline and the projects do not entangle.
+After a successful sync the home screen shows your tailnet: each row carries
+an OS glyph, an online dot and the hostname, with the date on the left of the
+header, `HH:MM` centred, and Wi-Fi / battery marks on the right. Done —
+everything else below is navigation and background.
 
-```bash
-git switch main
-git switch -c feature/my-passport-app
-```
+## Three-key navigation
 
-Example branches may change the same menu, configuration, or driver in incompatible ways. Understand the differences before extracting a state model, asset pipeline, or concurrency pattern. Code appearing in an example branch is not automatically part of the current `main` BSP contract.
+`UP` / `DOWN` move, `OK` confirms, **OK long-press** goes back or opens the
+menu. The full screen-by-screen table lives in the
+[panel guide](development/apps/tailscale-panel.md); the useful bits:
 
-</details>
+| View | Reached by | Keys |
+| --- | --- | --- |
+| Device list | at startup | Up/Down select, OK opens detail; OK long-press opens system settings; with no sync yet OK opens the status view |
+| Device detail (address, OS, client, owner, tags, key expiry, last seen, joined, relay, routes — ten rows, scrolls vertically) | OK on a list row | Up/Down scroll, stop at the edges; OK opens status; OK long-press returns to the list |
+| Status view (menu: sync now / LAN configuration / start the guide hotspot / clear credentials; body shows account, login state and the poll cadence) | OK on a detail page, or on an empty list | Up/Down pick an item, OK runs it; OK long-press back |
+| System settings (brightness, auto-sleep timeout, AOD toggle, network configuration) | OK long-press on the list | OK enters a sub-page / saves; OK long-press returns to the list and persists |
 
-## Hardware capability contract
+- **While Wi-Fi is down**, OK on the list retries the connection and its
+  long-press returns to the bootstrap hotspot.
+- **Sleep and AOD**: the backlight starts at 100 %. System settings offer
+  always-on display (a centred `HH:MM` plus the live `x/y` device count
+  at 20 % brightness) and auto-sleep tiers from off to 2 hours; any key
+  wakes the panel to where it was.
+- **Clock**: the board has no RTC. Time comes from SNTP; until the clock
+  actually moves past 1970 the header reads *waiting for time sync* and no
+  request is sent — certificate validation needs a valid clock, so the
+  panel waits instead of failing. If the router blocks UDP 123, the screen
+  says so.
+- **Freshness**: the online dot also answers for stale data — if the link
+  was down, dots go hollow and the detail line reads *last seen online*
+  instead.
 
-**ESP32-C3 · 8 MB Flash · no PSRAM · 240 × 320 display · three physical buttons**
+## How monitoring works
 
-The default layout contains only **NVS, PHY data, and one factory application**
-spanning the remaining Flash. User firmware may use another valid 8 MB layout.
-See [firmware layout](development/engineering/firmware-layout.md).
+- **Polling**: 120 s base interval after any success, doubled after failures
+  up to a 3600 s cap; a healthy reconnect resumes immediately.
+- **Online state**: as the control plane reports (`lastSeen` within a
+  15-minute grace window counts as connected), with a local freshness check
+  layered on top for the link that dropped.
+- **Detail rows** get their relay and route data from a second
+  per-device request that only runs while the detail page is open.
+- **Scale**: the list shows 24 rows; the footer carries the real total
+  (`N/M online, K more not shown`). Large tailnets still cost the same RAM —
+  the body is streamed and sliced, not parsed whole.
+- **Non-polling paths** (missed `lastSeen` nuance, the `-%` battery gauge,
+  IPv6 exclusion, the 15-minute grace, secret hygiene) are engineering notes
+  in the [panel guide](development/apps/tailscale-panel.md).
 
-<details>
-<summary><strong>Expand the capability table</strong> — interfaces, limits, and implementation details</summary>
+## Upstream AI Passport, briefly
 
-The table below describes the application capabilities implemented by the current `main` branch. It is not a list of everything that might be possible according to the chip datasheet.
-
-| Capability | Confirmed implementation | Application interface | Boundaries that must be respected |
-| --- | --- | --- | --- |
-| Display | ST7789P3, 240 × 320 portrait RGB565, SPI2 at 40 MHz; LEDC backlight | `bsp_display_*`, `bsp_lvgl_*` | The ESP32-C3 has no PSRAM; the current design uses a small single DMA buffer; the BSP exposes no LCD MISO, touch, or TE interface |
-| Input | `UP`, `DOWN`, and `OK` share an ADC resistor ladder on GPIO0 | `bsp_button_init()`, `bsp_button_read_mv()` | Callbacks run in the button component task and must not block; do not create a second ADC1 unit |
-| Audio | ES8311 with full-duplex PCM over I2S0, supporting playback, microphone capture, and software suspend/resume | `bsp_audio_*` | PCM reads and writes block and belong in a worker task; stop PCM I/O before codec sleep; format changes must retain the BSP close/open sequence |
-| Battery | CW2017 state-of-charge and voltage readings | `bsp_battery_*` | This capability is optional at runtime; accuracy depends on the cell and battery profile and is not equivalent to a calibrated result |
-| Wi-Fi | On-demand 2.4 GHz STA scan demo | `main/demo_wifi.c` | Scans only; it does not connect, store credentials, or validate antenna/RF performance |
-| Bluetooth LE | On-demand non-connectable NimBLE advertising as `FoloPassport` | `main/demo_ble.c` | ESP32-C3 does not support Bluetooth Classic; radio range, coexistence, and power draw require device measurements |
-| Low power | Two-second light sleep and five-second deep sleep, both with RTC timer wakeup | `main/demo_low_power.c` | Both modes force and verify ES8311 suspend; light sleep restores audio, while deep sleep first suspends CW2017, releases I2S/shared-I2C pins, sleeps and holds the LCD pins, then restarts on wake; the current demo exposes RTC timer wake only |
-| Shared bus | ES8311 and CW2017 share I2C0 | `bsp_i2c_*` | Every device must reuse the bus owned by the BSP; do not create another bus on the same port for scanning or a new device |
-| Logging and flashing | Native ESP32-C3 USB Serial/JTAG | ESP-IDF console | GPIO18/19 are reserved for USB; the default UART0 TX on GPIO21 conflicts with the backlight |
-
-All pins, addresses, panel parameters, and button voltage windows are defined only in [`components/bsp/include/bsp_pins.h`](../components/bsp/include/bsp_pins.h). Application code must not duplicate these constants. See the [AI Hardware Development Guide](hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md) for the complete pin map, panel initialization, ADC thresholds, I2C addressing rules, audio clocks, and memory details.
-
-Applications may also use ESP-IDF timers, FreeRTOS tasks, and internal Flash/NVS; the Pomodoro branch contains an NVS example. Wi-Fi and Bluetooth LE remain ESP-IDF application services rather than BSP APIs: their menu pages initialize each stack only while open and release it on exit. `demo/claude-buddy-port` remains a fuller BLE application architecture reference, not a substitute for measuring the current board's antenna, RF performance, power consumption, and coexistence behavior.
-
-### Capabilities outside the current contract
-
-The public firmware contract is limited to the interfaces listed above. Do not infer additional board interfaces from the ESP32-C3 feature list. New hardware interfaces require an explicit BSP definition and on-device acceptance criteria.
-
-</details>
-
-## Project structure
-
-Board support lives in `components/bsp`; application pages, state, and tasks live
-in `main`. Keep that boundary when building your own firmware.
-
-<details>
-<summary><strong>Browse the repository map</strong></summary>
-
-```text
-components/bsp/include/  Public BSP APIs and bsp_pins.h hardware facts
-components/bsp/src/      Display, button, audio, battery, and shared-I2C implementations
-main/                    Minimal menu, LVGL UI, and independent hardware demo pages
-tests/                   Lightweight logic tests that can run without hardware
-tools/                   Shared local/CI validation and firmware verification scripts
-docs/                    Project docs, changelog, engineering/contribution rules, and design references
-.github/                 GitHub community files, PR template, issue forms, and CI workflows
-sdkconfig.defaults       ESP32-C3, USB console, Flash, and LVGL defaults
-partitions.csv           Minimal default: NVS, PHY data, and one factory application
-dependencies.lock        Reproducible ESP-IDF Managed Component resolution
-AGENTS.md                Mandatory AI-agent entry point (paired with AGENTS.zh_CN.md)
-CLAUDE.md                Claude Code pointer to AGENTS.md (paired Chinese version)
-LICENSE                  Repository license
-```
-
-</details>
+AI Passport is an open wearable AI platform from FoloToy: a small board, a
+240 × 320 screen, three buttons, microphone/speaker and battery, with
+open firmware and community examples; AI coding agents build applications
+for it from a one-line requirement. This repository takes that baseline and
+builds one derivative application — the Tailscale monitor panel, branched as
+`feature/network-engineer-panel`. Board facts, interfaces and acceptance
+rules remain shared with the upstream BSP contract; only the application
+lives here.
 
 ## Documentation index
 
-Engineering and contribution guides define the rules; examples and archives
-provide reference material. Choose the entry that matches your task.
-
-| Resource | What you will find |
+| Document | What you will find |
 | --- | --- |
-| [Development](development/README.md) | AI workflow, engineering conventions, CI, and release guidance |
-| [AI skills](../skills/README.md) | Development, environment setup, builds, device testing, and debugging |
-| [Hardware](hardware-design/README.md) | Board facts, interface boundaries, acceptance checklists, and troubleshooting |
-| [Chinese fonts](development/engineering/lvgl-chinese-fonts.md) | Glyph coverage, widget font selection, and blank-text troubleshooting |
-| [Wi-Fi provisioning](development/engineering/wifi-provisioning.md) | Bluetooth provisioning reference and companion mini program |
-| [Community projects and experience](reference/README.md) | Playbooks and reusable knowledge under `docs/reference/<username>/` |
-| [Contributing](contribution/README.md) | Documentation, commits, and pull-request conventions |
-| [Brand assets](brand/README.md) | Product visual references and [brand language](brand/brand-and-product.md) |
-| [Fork guide](fork-guide.md) · [Changelog](CHANGELOG.md) | Downstream workflows and release history |
+| [Panel guide](development/apps/tailscale-panel.md) | Full usage and UI specification of this build |
+| [Delivery history](development/apps/tailscale-panel-history.md) | Per-version records: decisions, gates, image identity |
+| [Hardware guide](hardware-design/AI_HARDWARE_DEVELOPMENT_GUIDE.md) | Board facts, pin map, interface boundaries, acceptance checklists |
+| [Firmware layout](development/engineering/firmware-layout.md) | Partitions, flashing, and stored-data reset behaviour |
+| [Development guide](development/README.md) | Upstream AI Passport workflow, conventions and CI |
+| [Community projects](reference/README.md) | Example demo branches and reusable experience |
+| [Fork guide](fork-guide.md) · [Changelog](CHANGELOG.md) | Downstream workflow and release history |
+| [Contributing](contribution/README.md) | Documentation, commits and pull-request conventions |
 
 ---
 
 [Contribute](../.github/CONTRIBUTING.md) · [Get help](../.github/SUPPORT.md) · [Code of conduct](../.github/CODE_OF_CONDUCT.md) · [Security](../.github/SECURITY.md) · [MIT License](../LICENSE)
-
-AI agents: start with [`AGENTS.md`](../AGENTS.md) and follow its task-specific routing.
