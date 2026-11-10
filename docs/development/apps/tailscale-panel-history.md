@@ -860,7 +860,43 @@ content-addressed `build/firmware/<sha256>/` bundles.
   re-provisioning and without wiping the SoftAP credentials; the AOD battery
   icon matches the header battery; the `np-0.2.11` regression items).
 
-## Standing deferrals (as of np-0.2.12)
+## np-0.2.13 — fix(prov): the credentials page opens even when the link lands late
+
+- Feedback on the np-0.2.12 flash: after successful Wi-Fi provisioning (the
+  SoftAP first-time entry) the device neither jumped to the Tailscale-credentials
+  LAN page nor back to the list — it stayed on the list, whose host area is empty
+  without credentials.
+- Root cause: the roaming work made `wifi_connect_and_run()` (the boot connect
+  and the manual retry) treat the selection scan as a gate. `wifi_pick_known()`
+  returning false aborted the connect with "no remembered Wi-Fi nearby". But
+  the selection scan is only an optimisation, and the first scan right after the
+  AP→STA switch is routinely rejected by the driver while the radio settles —
+  which hits exactly the multi-network device the roaming feature creates. The
+  boot connect then failed into `ST_WIFI_RETRY`, and neither the old nor the new
+  `ST_WIFI_RETRY` self-heal ever reopened the credentials page, so the user was
+  parked on the empty list.
+- `wifi_connect_and_run()` no longer aborts on a failed selection: the scan
+  still runs (so it can swap in the stronger remembered network), but a blocked
+  scan falls through and connects to the active pairing anyway. The scan may
+  "pick a better one"; it is not a gate on connecting.
+- A new `maybe_prompt_credentials()` is the single rule for "open the
+  pairing-code page when no Tailscale credential is stored": `enter_boot` uses
+  it, and the `ST_WIFI_RETRY` → `ST_RUN` self-heal now calls it too, so a link
+  that lands after the boot connect (late DHCP, a retry ladder that finally
+  recovers) still opens the credentials LAN page instead of leaving an empty
+  list on screen.
+- `--static` is green (`Repository checks` 434 files / `Host tests` PASS;
+  inventory regenerated to 999 codepoints from the new comment glyphs). Image
+  `build/FoloToy-AI-Passport-full-np-0.2.13.bin`, 2067664 bytes
+  (-32 vs np-0.2.12), sha256
+  `f842eef5b4abb2786f0d9149be0f0407c7a1a7e3b96fa2fae9d04fce7b35d326`; map
+  `.dram0.bss` `0x1b5c8` (unchanged), `work_mem_int` `0x10000` unchanged.
+  Embedded version check: PASS (np-0.2.13). **Awaiting a device flash**
+  (checks: re-provision over SoftAP and the credentials page opens immediately;
+  roaming from np-0.2.12 still switches networks on its own; the AOD battery
+  icon and mark from np-0.2.12).
+
+## Standing deferrals (as of np-0.2.13)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -874,8 +910,10 @@ content-addressed `build/firmware/<sha256>/` bundles.
 - AP channel auto-selection and an async (non-blocking) scan engine — noted in
   np-0.2.2.
 - The np-0.2.0 / np-0.2.1 / np-0.2.2 / np-0.2.3 / np-0.2.4 / np-0.2.5 /
-  np-0.2.6 / np-0.2.7 / np-0.2.8 / np-0.2.9 / np-0.2.10 / np-0.2.11 /
-  np-0.2.12 device-test items are all pending the user's flash authorisation.
+  np-0.2.6 / np-0.2.7 / np-0.2.8 / np-0.2.9 / np-0.2.10 / np-0.2.11 device-test
+  items are all pending the user's flash authorisation. np-0.2.12 was flashed:
+  its roaming and AOD checks ran on device and its credentials-jump regression
+  is fixed in np-0.2.13, whose device re-test awaits flash authorisation.
 
 ## Repository rename (2026-11-09)
 

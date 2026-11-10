@@ -342,7 +342,11 @@ not look like a hang.
   credentials work.
 - **Missing credentials:** once Wi-Fi is up with no Tailscale credentials
   stored, the device starts one LAN config session on its own and the screen
-  shows the pairing-code page. That page states its purpose in plain words —
+  shows the pairing-code page. Since `np-0.2.13` the open is a rule the boot
+  and the link-recovery self-heal share (`maybe_prompt_credentials()`): a link
+  that comes up late — the boot connect fell back to `ST_WIFI_RETRY` and the
+  ladder later recovers — opens the same page, rather than parking an empty
+  list on screen. That page states its purpose in plain words —
   "enter the Tailscale credentials from another device" — and shows the direct
   IP; `netpanel.local` left the device screen in `np-0.2.1` (too many hosts
   cannot resolve it) and stays on the web page header and mDNS only. Aborting

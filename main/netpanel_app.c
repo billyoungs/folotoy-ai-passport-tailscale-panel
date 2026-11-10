@@ -365,7 +365,8 @@ static void err_src(np_err_src_t *src)
 // 多网络记忆:连之前先看附近有哪些已记住的网,挑信号最强的那个作为活动
 // 配对。只有一张记忆时不花扫描(直连最近用的);多张时交 app_wifi_preflight_
 // roam:扫描若被驱动的"死旧网连接循环"拒绝,它在内部把栈推回空闲再扫,手动
-// 重试也换得动网。返回 false = 已记住的网一张都不在附近,如实报,不烧超时。
+// 重试也换得动网。返回值只是"这一次选没选成",调用方一律继续直连当前活动
+// 配对(见 wifi_connect_and_run:选网是优化,不是关)。
 static bool wifi_pick_known(void)
 {
     if (app_cfg_wifi_count() <= 1u) return true;
@@ -375,10 +376,13 @@ static bool wifi_pick_known(void)
 static bool wifi_connect_and_run(void)
 {
     s_time_synced = false;
-    if (!wifi_pick_known()) {
-        set_err("附近没有已记住的 Wi-Fi,长按重配");
-        return false;
-    }
+    // 选网只是优化:多张已记住的网时扫一眼、把最强的换上;扫不成就按当前活动
+    // 配对直连。扫描的目的是"换一张更好的",不是给连接新设的一道关 —— 判成
+    // "附近没有已记住的 Wi-Fi"会挡住一张刚配好、其实连得上的网(多网络设备
+    // 从热点切过来那一拍射频还没空闲,第一个扫描常被驱动拒绝,np-0.2.12 实机:
+    // 重新配网后设备被这道关按进重试页,再不自愈到凭据录入页)。所以这里一律
+    // 放行、把成败交给连接本身去说话。
+    (void)wifi_pick_known();
     esp_err_t err = app_wifi_connect();
     if (err == ESP_OK) {
         s_link_seen = true;
@@ -439,6 +443,16 @@ static void open_lan_prov(void);
 // 会话结束后的收尾:它决定回哪一页,配对码页的长按出口也要走同一条路。
 static void handle_prov_done(void);
 
+// 链路"迟到"时该补的那一次跳转:开机那一跳拿不到地址、退进重试页,或重试阶梯
+// 把链路熬回来 —— 这些时刻凭据页都不能再没人点开。共用这一句,免得两处各说
+// 各话(np-0.2.12 实机:链路回来之后屏幕停在列表页,凭据录入界面没出现)。
+static void maybe_prompt_credentials(void)
+{
+    if (app_cfg_has_tailscale() || s_prompt_dismissed) return;
+    if (!app_wifi_has_ip()) return;
+    open_lan_prov();
+}
+
 // 从 BOOT 走一遍:载入配置 → 有 Wi-Fi 就连,没有就起引导热点。
 static void enter_boot(void)
 {
@@ -460,11 +474,9 @@ static void enter_boot(void)
     if (!app_cfg_has_tailscale()) {
         set_note("待配置 Tailscale 凭据");
         // 没凭据就没有设备行,列表页什么也显示不了。直接落到配对码页面,
-        // 而不是让用户自己找"网络配置"。
-        if (!s_prompt_dismissed && app_wifi_has_ip()) {
-            open_lan_prov();
-            if (s_state == ST_PROV) return; // 服务真起来了才交给配网页
-        }
+        // 而不是让用户自己找"网络配置"。跳转条件与自愈那条共用一句。
+        maybe_prompt_credentials();
+        if (s_state == ST_PROV) return; // 服务真起来了才交给配网页
     } else {
         clear_status();
     }
@@ -983,6 +995,9 @@ static void app_task(void *arg)
                 sntp_start();
                 s_state = ST_RUN;
                 clear_status();
+                // 链路熬回来了,凭据还没填就照旧落到配对码页 —— 开机那一跳
+                // 之外的迟到地址不该把用户晾在列表页上逛。条件与开机那条共用。
+                maybe_prompt_credentials();
             }
             // 会话收尾:以前由 prov_wd 那个任务自己拆自己通知,现在它只报一句
             // "该关了",拆与后续都在这一拍里做 —— 全程只有一个任务开关会话。
