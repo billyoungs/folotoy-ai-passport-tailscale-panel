@@ -828,7 +828,39 @@ content-addressed `build/firmware/<sha256>/` bundles.
   after a successful sync it shows time + `x/y`; the `np-0.2.10` regression
   items).
 
-## Standing deferrals (as of np-0.2.11)
+## np-0.2.12 — fix(wifi): roam across remembered networks without re-provisioning
+
+- Feedback: moving between several provisioned Wi-Fi networks did not reconnect
+  automatically to the network at the new location. The link-down ladder only
+  re-kicked `esp_wifi_connect()`, which reselected the SSID that had just
+  dropped — and a non-OS driver stuck in a connect loop cannot even be
+  interrupted by a scan; a full stack rebuild is the only way back to a
+  scan-capable idle.
+- The selection phase now runs on the ladder itself. When more than one network
+  is remembered, the first down pass (3 s) and every 30 s probe run a scan
+  selection first (`scan_pick`): the strongest remembered SSID on air wins; if
+  no remembered network is visible, each remembered SSID is probed by a
+  directed scan (`wifi_scan_ssid`) and the best responder wins, so the device
+  moves on its own. A plain re-kick to the dropped SSID is no longer the
+  fallback for a non-auth disconnect, and the REBUILD rungs of the ladder
+  restart the stack, returning the radio to scan-capable idle so the
+  selection phase can run at all.
+- The AOD screen gains the battery icon (top right, same geometry as the list
+  header) and a Tailscale mark above the `x/y` count. The mark stays hidden
+  until the host list has been read (same `has_count` gate). New glyphs: none
+  (the battery icon redraws the geometry already drawn in the list header).
+- `--static` is green (`Repository checks` 434 files / `Host tests` PASS).
+  Image `build/FoloToy-AI-Passport-full-np-0.2.12.bin`, 2067696 bytes
+  (+912), sha256
+  `168563c04f93c0f7e560d3cf3c2b2969a57839ad14a05428a75c0c6da1028aea`; map
+  `.dram0.bss` `0x1b5c8` (+0x30), `work_mem_int` `0x10000` unchanged.
+  Embedded version check: PASS (np-0.2.12).
+  **Awaiting a device flash** (checks:
+  moving between covered networks switches automatically without
+  re-provisioning and without wiping the SoftAP credentials; the AOD battery
+  icon matches the header battery; the `np-0.2.11` regression items).
+
+## Standing deferrals (as of np-0.2.12)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -842,8 +874,8 @@ content-addressed `build/firmware/<sha256>/` bundles.
 - AP channel auto-selection and an async (non-blocking) scan engine — noted in
   np-0.2.2.
 - The np-0.2.0 / np-0.2.1 / np-0.2.2 / np-0.2.3 / np-0.2.4 / np-0.2.5 /
-  np-0.2.6 / np-0.2.7 / np-0.2.8 / np-0.2.9 / np-0.2.10 / np-0.2.11 device-test items are
-  all pending the user's flash authorisation.
+  np-0.2.6 / np-0.2.7 / np-0.2.8 / np-0.2.9 / np-0.2.10 / np-0.2.11 /
+  np-0.2.12 device-test items are all pending the user's flash authorisation.
 
 ## Repository rename (2026-11-09)
 

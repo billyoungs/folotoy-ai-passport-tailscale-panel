@@ -20,6 +20,17 @@ esp_err_t app_wifi_init(void);
 // 重复调用会以新凭据重连。未配置凭据返回 ESP_ERR_INVALID_STATE。
 esp_err_t app_wifi_connect(void);
 
+// 把整个 STA 栈推回"没发起过连接"的空闲态(stop + init):选网扫描被驱动
+// "连接态"(对死旧网的循环)拒绝、或手动重连前,先取回可用的射频窗口。
+// 幂等;失败(仅 init 失败)返回 ESP_FAIL。
+esp_err_t app_wifi_restart(void);
+
+// 阻塞连接前的选网一步:扫描附近,在已记住的多张网里挑信号最强者作为活动
+// 配对(写回 app_cfg)。true = 当前配置就是待连的网;false = 选网被射频状态
+// 挡住(内部已尝试重建空闲仍扫不动),本轮不该盲连。单张记忆或扫描不可行时按
+// 原配置直连 —— 选网是优化,不是新的故障点。
+bool app_wifi_preflight_roam(bool allow_rebuild);
+
 // 断开并停止 Wi-Fi(释放射频,供 SoftAP 引导模式接管)。
 esp_err_t app_wifi_stop(void);
 
@@ -30,6 +41,8 @@ bool app_wifi_has_ip(void); // 已关联且拿到 IPv4:局域网配置服务的�
 // 这里负责补发,并在补发到头后清状态、整栈重建。未启动/正在阻塞连接时为空操作;
 // 扫描占用射频期间也直接返回(那时补发会把扫描掐掉并让驱动回
 // ESP_ERR_WIFI_STATE),扫完由 heal_after_scan 当场补一跳。
+// 每一档补发前先做选网(在已记住的多网之间漫游);驱动因"对已死旧网的连接
+// 循环"占住射频时选网扫描会被拒,内部先把栈推回空闲再扫。
 // allow_rebuild=false 时最高那档降为清连接状态:局域网配置页的 httpd 与 mDNS
 // 绑在这块 netif 上,整栈重建会把会话一起拆掉。
 void app_wifi_reconcile(int64_t now_ms, bool allow_rebuild);

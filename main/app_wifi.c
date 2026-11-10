@@ -48,9 +48,10 @@ static np_link_t s_link;          // 断链补发阶梯(见 np_link.h)
 static volatile bool s_manual;    // 上层正在走阻塞连接,阶梯别插手
 static volatile bool s_scan_busy; // 扫描占用射频期间,阶梯也别插手(见 app_wifi_reconcile)
 static volatile int64_t s_no_ip_ms; // 关联成功但还没拿到地址的起点
-// 漫游(见 roam_if_due):上次扫描的时刻,只由 poll 任务经 reconcile 触碰。
+// 漫游选网频率上限(见 kick_with_roam):上次选网扫描的时刻,只由 poll 任务
+// 经 reconcile 触碰。轮询每 30 秒最多借一次射频去选网,免得断链期间扫描与
+// 驱动的连接尝试互相踩踏。
 static int64_t s_roam_ms;
-#define ROAM_FROM_TRIES 2     // 3 秒档那次补发让驱动与阶梯先自己试
 #define ROAM_INTERVAL_MS 30000
 
 static void on_connected(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -115,8 +116,11 @@ static void on_disconnected(void *arg, esp_event_base_t base, int32_t id, void *
         xEventGroupSetBits(s_events, FAIL_BIT);
         return;
     }
-    // 其余原因(含 AP 暂时不可见)交给组件自己重试。
-    if (s_started) (void)esp_wifi_connect();
+    // 其余原因一律不在这里补发连接,交给阶梯:驱动在断开时自带一轮内部重试,
+    // 对"已在别处"的网那一轮注定完不成;我们再补 esp_wifi_connect 只会把它整
+    // 整重启一遍 —— 驱动停在"对死网的连接循环"上期间,上层每一个选网扫描都被
+    // 打回 ESP_ERR_WIFI_STATE,多网络设备永远换不到另一张网(实测结论)。阶梯
+    // 的补发自带"选网前先让射频空闲"的重建路径,3 秒一档够快,不缺这一拍。
 }
 
 // 用 app_cfg 里的凭据组一份 wifi_config(非阻塞路径与阻塞路径共用一份定义)。
@@ -277,23 +281,111 @@ esp_err_t app_wifi_connect(void)
     return err;
 }
 
-// 漫游:阶梯补发的永远是配置里那张活动网;设备被拿到别的环境后,它已不在
-// 空中,只会一直失败。挂在阶梯动作这一拍,是因为只有这时射频才确定空闲,
-// 扫描不会吞掉在途的恢复;前几档先让驱动与阶梯自己试,之后至多 30 秒扫一次,
-// 从已记住的网里挑信号最强的换上,再按换好的活动配对补发。
-static void roam_if_due(int64_t now_ms)
+// 定向扫描一张已记住的网络:驱动按 SSID 过滤,单个网络十几毫秒。扫到返回
+// rssi,扫不到返回 -128;-128 在有效 rssi(-100..-20)之外,不会被误读成"信号
+// 弱但存在"。与全量扫描同样会被"连接态"拒绝 —— 失败一律按 -128 上报,由调用方
+// 决定要不要先还射频空闲。
+static int8_t wifi_scan_ssid(const char *ssid)
 {
-    if (app_cfg_wifi_count() <= 1u) return;   // 只有一张记忆不值得扫描
-    if (np_link_tries(&s_link) < ROAM_FROM_TRIES) return;
-    if (now_ms - s_roam_ms < ROAM_INTERVAL_MS) return;
-    s_roam_ms = now_ms;
+    if (!s_started || ssid == NULL || ssid[0] == '\0') return -128;
+    wifi_scan_config_t cfg = { 0 };
+    strlcpy((char *)cfg.ssid, ssid, sizeof(cfg.ssid));
+    cfg.show_hidden = false;
+    cfg.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+    cfg.scan_time.active.min = 20;
+    cfg.scan_time.active.max = 100;
+
+    s_scan_busy = true;
+    esp_err_t err = esp_wifi_scan_start(&cfg, true);
+    s_scan_busy = false;
+    if (err != ESP_OK) return -128;
+
+    int8_t best = -128;
+    wifi_ap_record_t rec;
+    while (esp_wifi_scan_get_ap_record(&rec) == ESP_OK) {
+        if (strcmp((const char *)rec.ssid, ssid) == 0 && rec.rssi > best)
+            best = rec.rssi;
+    }
+    (void)esp_wifi_clear_ap_list();
+    return best;
+}
+
+// 选网扫描:在已记住的多张网里挑信号最强的作为活动配对。三层语义,上层照着用:
+//   true = 选网完成:app_cfg 里就是该连的网(可能还是原网络,或一张都不在附近,
+//          这两种情况按当前配置直连即可);
+//   false = 选网被状态挡住(见下),本轮不该拿旧网盲连。
+// 挡住的根因是实测结论:STA 带着"已在别处"的旧网进入连接循环后,驱动一直在
+// 空扫那一个 SSID,期间任何 esp_wifi_scan_start 都被打回 ESP_ERR_WIFI_STATE,
+// 选网窗口永远开不了。所以:允许重建时先把整栈推回空闲(新栈上没有连接循环,
+// 扫描必成),原地重扫;局域网配置会话在场不许重建(会拆 httpd/mDNS),退化为
+// "清一次连接 + 等一拍"再扫。
+static bool scan_pick(bool allow_rebuild)
+{
+    if (app_cfg_wifi_count() <= 1u) return true;   // 只有一张记忆:直连最近用的,不扫
+
     np_scan_ap_t aps[NP_SCAN_KEEP];
     size_t n = 0;
-    if (app_wifi_scan(NULL, aps, NP_SCAN_KEEP, &n) != ESP_OK) return;
+    bool ok = (app_wifi_scan(NULL, aps, NP_SCAN_KEEP, &n) == ESP_OK);
+    if (!ok) {
+        if (allow_rebuild) {
+            if (app_wifi_restart() != ESP_OK) return false;
+        } else {
+            (void)esp_wifi_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+        ok = (app_wifi_scan(NULL, aps, NP_SCAN_KEEP, &n) == ESP_OK);
+    }
+    if (!ok) {
+        ESP_LOGW(TAG, "选网扫描重建后仍失败,本轮不动,等下一拍");
+        return false;
+    }
+
     const int pick = app_cfg_wifi_pick(aps, n);
-    if (pick < 0) return;
-    (void)app_cfg_wifi_select((size_t)pick);
-    ESP_LOGI(TAG, "漫游:活动网切到 %s", app_cfg_ssid());
+    if (pick >= 0) {
+        (void)app_cfg_wifi_select((size_t)pick);
+        ESP_LOGI(TAG, "漫游:活动网切到 %s", app_cfg_ssid());
+        return true;
+    }
+    // 列表里一张已记住的网都没有:周围 AP 太多,弱信号的认识网被
+    // NP_SCAN_KEEP 截在表外。不能拿"没扫到"当"不在附近"就盲连,逐张
+    // 定向补扫,取信号最强那张。
+    int best_idx = -1;
+    int8_t best_rssi = -128;
+    for (size_t i = 0; i < app_cfg_wifi_count(); i++) {
+        const char *want = app_cfg_wifi_ssid_at(i);
+        if (want == NULL || want[0] == '\0') continue;
+        const int8_t r = wifi_scan_ssid(want);
+        if (r > best_rssi) { best_rssi = r; best_idx = (int)i; }
+    }
+    if (best_idx >= 0) {
+        (void)app_cfg_wifi_select((size_t)best_idx);
+        ESP_LOGI(TAG, "定向补扫找到 %d dBm:活动网切到 %s", (int)best_rssi,
+                 app_cfg_ssid());
+    }
+    return true;
+}
+
+// 选网扫描的对外出口:上层在"阻塞连接前先看附近有没有已记住的网"时用
+// (见 netpanel_app 的 wifi_pick_known)。true = 当前配置即已知网,可以直接连;
+// false = 选网被状态挡住,上层这一拍不要盲连。
+bool app_wifi_preflight_roam(bool allow_rebuild)
+{
+    return scan_pick(allow_rebuild);
+}
+
+// 阶梯每一档补发前的公共一步:到频率上限就先选网(选网内部自带"扫描被拒就重建
+// 空闲"的自救),选完再按当前配对发起连接。force_pick = 栈刚重建过,这一拍必须
+// 选网(新栈空转不会产生连接事件,不选就永远停在断开态)。返回 false = 选网没
+// 就绪,本轮不补发:拿一张注定失败的旧网冲一轮连接,只会把射频再次锁进死循环。
+static bool kick_with_roam(int64_t now_ms, bool allow_rebuild, bool force_pick)
+{
+    if (!force_pick && app_cfg_wifi_count() > 1u &&
+        now_ms - s_roam_ms >= (int64_t)ROAM_INTERVAL_MS) {
+        s_roam_ms = now_ms;
+        if (!scan_pick(allow_rebuild)) return false;
+    }
+    kick_connect();
+    return true;
 }
 
 void app_wifi_reconcile(int64_t now_ms, bool allow_rebuild)
@@ -318,21 +410,22 @@ void app_wifi_reconcile(int64_t now_ms, bool allow_rebuild)
     case NP_LINK_ACT_NONE:
         break;
     case NP_LINK_ACT_CONNECT:
-        roam_if_due(now_ms);
-        kick_connect();
+        (void)kick_with_roam(now_ms, allow_rebuild, false);
         break;
     case NP_LINK_ACT_FORGET:
-        // 卡在"正在连接"时 esp_wifi_connect 会被原地吞掉,先拆一次再连。
+        // 卡在"正在连接"时 esp_wifi_connect 会被原地吞掉,先拆一次再连;
+        // 选网放拆后,射频才确定给学生(见 kick_with_roam)。
         ESP_LOGW(TAG, "断链补发 %u 轮未恢复,先清连接状态",
                  (unsigned)np_link_tries(&s_link));
         (void)esp_wifi_disconnect();
         vTaskDelay(pdMS_TO_TICKS(200));
-        roam_if_due(now_ms);
-        kick_connect();
+        (void)kick_with_roam(now_ms, allow_rebuild, false);
         break;
     case NP_LINK_ACT_REBUILD:
         // 补发到头还不回来:事件句柄与事件组的对应关系已经不可信,整栈重建。
-        // 这是"必须重走热点配网"那个死路的出口。
+        // 这是"必须重走热点配网"那个死路的出口 —— 重建后的栈是空闲的,
+        // 这一拍紧跟一次选网(force_pick),换到新位置的已记住网直接连,
+        // 不再无条件拿旧网补发。
         if (!allow_rebuild) {
             // 但局域网配置页的 httpd 与 mDNS 就绑在这块 netif 上,拆了页面就死。
             // 这一档降级成清连接状态,链路真回来了再谈重建。
@@ -340,13 +433,16 @@ void app_wifi_reconcile(int64_t now_ms, bool allow_rebuild)
                      (unsigned)np_link_tries(&s_link));
             (void)esp_wifi_disconnect();
             vTaskDelay(pdMS_TO_TICKS(200));
-            kick_connect();
+            (void)kick_with_roam(now_ms, false, false);
             break;
         }
         ESP_LOGW(TAG, "断链补发 %u 轮未恢复,整栈重建 Wi-Fi",
                  (unsigned)np_link_tries(&s_link));
-        app_wifi_stop();
-        if (app_wifi_init() == ESP_OK) kick_connect();
+        if (app_wifi_restart() != ESP_OK) break;
+        // 重建把事件句柄与阶梯都换了新的:驱动未必再发断开事件,阶梯不会自己
+        // 武装 —— 这里补一次,下一个 3 秒档照常走选网补发。
+        np_link_down(&s_link, now_ms);
+        (void)kick_with_roam(now_ms, true, true);
         break;
     }
 }
@@ -384,6 +480,17 @@ esp_err_t app_wifi_stop(void)
         s_netif = NULL;
     }
     return err;
+}
+
+// 把整个 STA 栈推回"没发起过连接"的空闲态:新栈上驱动没有对死网的连接循环,
+// 扫描与选网才可能成(否则 esp_wifi_scan_start 被 ESP_ERR_WIFI_STATE 打回)。
+// 阶梯一并清零 —— 调用方要么当场补 np_link_down 重新武装,要么就在补发之后的
+// 下一拍靠断开事件自然武装。本函数是幂等的(未启动时等价于 init)。
+esp_err_t app_wifi_restart(void)
+{
+    app_wifi_stop();
+    if (!s_started && app_wifi_init() != ESP_OK) return ESP_FAIL;
+    return ESP_OK;
 }
 
 bool app_wifi_is_up(void) { return s_up; }

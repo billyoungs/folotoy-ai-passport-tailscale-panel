@@ -288,6 +288,13 @@ void app_cfg_clear_wifi(void)
 
 size_t app_cfg_wifi_count(void) { return s_wifi_store.count; }
 
+const char *app_cfg_wifi_ssid_at(size_t idx)
+{
+    if (idx >= s_wifi_store.count || s_wifi_store.slot[idx].ssid[0] == '\0')
+        return NULL;
+    return s_wifi_store.slot[idx].ssid;
+}
+
 bool app_cfg_wifi_select(size_t idx)
 {
     if (!np_wifi_store_select(&s_wifi_store, idx)) return false;

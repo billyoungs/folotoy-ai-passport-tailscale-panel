@@ -73,9 +73,12 @@ void np_ui_highlight(void);
 void np_ui_settings_enter(void);
 // 设置屏长按返回:落盘并切回列表屏。调用方须持有 LVGL 锁。
 void np_ui_settings_save_and_back(void);
-// 熄屏显示:建/复用 AOD 屏并切过去,内容为时间 + 设备数 x/y(在线/总数)。
-// has_count 为 false(还没成功读到 Tailscale 主机列表)时只居中显示时间,不显示
-// x/y,避免在数据没到手前报出不准的在线状况。调用方须持有 LVGL 锁。
-void np_ui_aod_show(const char *hm, uint32_t online, uint32_t total, bool has_count);
+// 熄屏显示:建/复用 AOD 屏并切过去,内容为时间 + Tailscale 标志 + 设备数
+// x/y(在线/总数)+ 右上角电池图标。has_count 为 false(还没成功读到
+// Tailscale 主机列表)时只居中显示时间,不显示 x/y 与标志,避免在数据没
+// 到手前报出不准的在线状况。调用方须持有 LVGL 锁。
+void np_ui_aod_show(const char *hm, int battery_pct, uint32_t online,
+                    uint32_t total, bool has_count);
 // 刷新已显示的 AOD 屏内容(未显示时为空操作)。调用方须持有 LVGL 锁。
-void np_ui_aod_update(const char *hm, uint32_t online, uint32_t total, bool has_count);
+void np_ui_aod_update(const char *hm, int battery_pct, uint32_t online,
+                      uint32_t total, bool has_count);

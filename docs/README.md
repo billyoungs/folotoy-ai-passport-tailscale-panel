@@ -146,9 +146,10 @@ menu. The full screen-by-screen table lives in the
 - **While Wi-Fi is down**, OK on the list retries the connection and its
   long-press returns to the bootstrap hotspot.
 - **Sleep and AOD**: the backlight starts at 100 %. System settings offer
-  always-on display (a centred `HH:MM` plus the live `x/y` device count
-  at 20 % brightness) and auto-sleep tiers from off to 2 hours; any key
-  wakes the panel to where it was.
+  always-on display — a centred `HH:MM` with the Tailscale mark and the live
+  `x/y` device count beneath it, and the battery icon top right, at 20 %
+  brightness — and auto-sleep tiers from off to 2 hours; any key wakes the
+  panel to where it was.
 - **Clock**: the board has no RTC. Time comes from SNTP; until the clock
   actually moves past 1970 the header reads *waiting for time sync* and no
   request is sent — certificate validation needs a valid clock, so the

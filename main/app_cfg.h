@@ -39,6 +39,9 @@ size_t app_cfg_wifi_count(void);
 bool app_cfg_wifi_select(size_t idx);
 // 扫描结果(已按信号降序)里找已记住的网络,返回记忆下标;没有交集返回 -1。
 int app_cfg_wifi_pick(const np_scan_ap_t *aps, size_t n);
+// 第 idx 个记忆网络的 SSID 只读视图(供定向补扫等排序选择用,不影响 MRU)。
+// 越界返回 NULL。SSID 本身非机密,但日志仍按常规长度打印即可。
+const char *app_cfg_wifi_ssid_at(size_t idx);
 
 // 写入前校验/清洗。返回 false 表示超长或非法,字段保持原值。
 bool app_cfg_set_ssid(const char *ssid);

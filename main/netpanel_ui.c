@@ -43,8 +43,13 @@ static lv_obj_t *s_list_scr, *s_head, *s_clock, *s_area, *s_footer;
 static lv_obj_t *s_rows[NP_MAX_DEVICES];
 static lv_obj_t *s_dots[NP_MAX_DEVICES];
 static lv_obj_t *s_names[NP_MAX_DEVICES];
+// 电池外框/填充/凸点。列表页头部与 AOD 页各画一份:两块屏可能同时存活,
+// 原来一组全局指针会让第二屏建出来时把第一屏的图标"抢走"。
+typedef struct {
+    lv_obj_t *body, *tip, *fill;
+} batt_ui_t;
 static lv_obj_t *s_wifi[3], *s_wifi_dot;
-static lv_obj_t *s_batt_body, *s_batt_fill, *s_batt_tip;
+static batt_ui_t s_batt, s_aod_batt;
 static lv_obj_t *s_detail_scr, *s_status_scr;
 static lv_obj_t *s_detail_body;   // 详情主体的滚动容器(值换行后靠它滚)
 static lv_obj_t *s_actions[NP_MENU_COUNT];
@@ -60,6 +65,7 @@ static lv_obj_t *s_brightness_val;   // 亮度子模式下的大数值标签(只
 static size_t s_interval_sel;
 static size_t s_net_sel;             // 网络配置子菜单选中下标(复用 np_menu 契约)
 static lv_obj_t *s_aod_scr, *s_aod_time, *s_aod_online;
+static lv_obj_t *s_aod_mark[NP_LOGO_DOTS];
 
 // ------------------------------------------------------------- 字体与自检
 static void fonts_init(void)
@@ -186,46 +192,47 @@ static void wifi_update(int8_t rssi)
     else lv_obj_add_flag(s_wifi_dot, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void battery_create(lv_obj_t *scr)
+static void battery_create(lv_obj_t *scr, batt_ui_t *b)
 {
     // 三个独立对象(不用父子):子对象会跟着父对象的圆角被裁,填充反而露边。
-    s_batt_body = lv_obj_create(scr);
-    lv_obj_set_size(s_batt_body, BATT_W, BATT_H);
-    lv_obj_set_pos(s_batt_body, BATT_X, BATT_Y);
-    lv_obj_set_style_bg_opa(s_batt_body, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(s_batt_body, BATT_PAD, 0);
-    lv_obj_set_style_border_color(s_batt_body, lv_color_hex(UI_MUTED), 0);
-    lv_obj_set_style_radius(s_batt_body, 3, 0);
-    lv_obj_remove_flag(s_batt_body, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_clickable(s_batt_body, false);
+    b->body = lv_obj_create(scr);
+    lv_obj_set_size(b->body, BATT_W, BATT_H);
+    lv_obj_set_pos(b->body, BATT_X, BATT_Y);
+    lv_obj_set_style_bg_opa(b->body, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(b->body, BATT_PAD, 0);
+    lv_obj_set_style_border_color(b->body, lv_color_hex(UI_MUTED), 0);
+    lv_obj_set_style_radius(b->body, 3, 0);
+    lv_obj_remove_flag(b->body, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_clickable(b->body, false);
 
-    s_batt_tip = lv_obj_create(scr);
-    lv_obj_set_size(s_batt_tip, 3, 5);
-    lv_obj_set_pos(s_batt_tip, BATT_X + BATT_W + 1, BATT_Y + (BATT_H - 5) / 2);
-    lv_obj_set_style_bg_color(s_batt_tip, lv_color_hex(UI_MUTED), 0);
-    lv_obj_set_style_radius(s_batt_tip, 1, 0);
-    lv_obj_set_style_border_width(s_batt_tip, 0, 0);
-    lv_obj_remove_flag(s_batt_tip, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_clickable(s_batt_tip, false);
+    b->tip = lv_obj_create(scr);
+    lv_obj_set_size(b->tip, 3, 5);
+    lv_obj_set_pos(b->tip, BATT_X + BATT_W + 1, BATT_Y + (BATT_H - 5) / 2);
+    lv_obj_set_style_bg_color(b->tip, lv_color_hex(UI_MUTED), 0);
+    lv_obj_set_style_radius(b->tip, 1, 0);
+    lv_obj_set_style_border_width(b->tip, 0, 0);
+    lv_obj_remove_flag(b->tip, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_clickable(b->tip, false);
 
-    s_batt_fill = lv_obj_create(scr);
-    lv_obj_set_size(s_batt_fill, 1, BATT_H - 2 * BATT_PAD);
-    lv_obj_set_pos(s_batt_fill, BATT_X + BATT_PAD, BATT_Y + BATT_PAD);
-    lv_obj_set_style_radius(s_batt_fill, 1, 0);
-    lv_obj_set_style_border_width(s_batt_fill, 0, 0);
-    lv_obj_remove_flag(s_batt_fill, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_clickable(s_batt_fill, false);
+    b->fill = lv_obj_create(scr);
+    lv_obj_set_size(b->fill, 1, BATT_H - 2 * BATT_PAD);
+    lv_obj_set_pos(b->fill, BATT_X + BATT_PAD, BATT_Y + BATT_PAD);
+    lv_obj_set_style_radius(b->fill, 1, 0);
+    lv_obj_set_style_border_width(b->fill, 0, 0);
+    lv_obj_remove_flag(b->fill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_clickable(b->fill, false);
 }
 
 // 电量档位:低电红、中间蓝、充足绿;读不到(-1)就只留一个暗外壳,不编数字。
-static void battery_update(int pct)
+// AOD 屏按一模一样的几何重画一份(右上角),与列表头部共享同一套档位规则。
+static void battery_update(batt_ui_t *b, int pct)
 {
-    if (!s_batt_body) return;
+    if (!b->body) return;
     const uint32_t shell = pct >= 0 ? UI_MUTED : UI_BAR_OFF;
-    lv_obj_set_style_border_color(s_batt_body, lv_color_hex(shell), 0);
-    lv_obj_set_style_bg_color(s_batt_tip, lv_color_hex(shell), 0);
+    lv_obj_set_style_border_color(b->body, lv_color_hex(shell), 0);
+    lv_obj_set_style_bg_color(b->tip, lv_color_hex(shell), 0);
     if (pct < 0) {
-        lv_obj_set_width(s_batt_fill, 1);
+        lv_obj_set_width(b->fill, 1);
         return;
     }
     uint32_t color = UI_ONLINE;
@@ -234,8 +241,8 @@ static void battery_update(int pct)
     const int inner_w = BATT_W - 2 * BATT_PAD;
     int fill_w = (inner_w - 1) * pct / 100;
     if (fill_w < 1) fill_w = 1;   // 再低的电也留一格,别让填充看着像没画
-    lv_obj_set_width(s_batt_fill, fill_w);
-    lv_obj_set_style_bg_color(s_batt_fill, lv_color_hex(color), 0);
+    lv_obj_set_width(b->fill, fill_w);
+    lv_obj_set_style_bg_color(b->fill, lv_color_hex(color), 0);
 }
 
 // ------------------------------------------------------------- 列表视图
@@ -268,7 +275,7 @@ void np_ui_list_enter(void)
     lv_label_set_long_mode(s_clock, LV_LABEL_LONG_CLIP);
     lv_label_set_text(s_clock, "--:--");
     wifi_create(s_list_scr);
-    battery_create(s_list_scr);
+    battery_create(s_list_scr, &s_batt);
     mk_divider(s_list_scr, 40);
 
     s_area = lv_obj_create(s_list_scr);
@@ -336,7 +343,7 @@ void np_ui_list_exit(void)
     s_detail_body = NULL;
     for (int i = 0; i < 3; i++) s_wifi[i] = NULL;
     s_wifi_dot = NULL;
-    s_batt_body = s_batt_fill = s_batt_tip = NULL;
+    s_batt.body = s_batt.tip = s_batt.fill = NULL;
     s_view = NP_VIEW_LIST;
     for (size_t i = 0; i < NP_MAX_DEVICES; i++) {
         s_rows[i] = s_dots[i] = s_names[i] = NULL;
@@ -380,7 +387,7 @@ void np_ui_render_list(const np_list_t *data, bool time_synced, int64_t now,
         snprintf(buf, sizeof(buf), "--:--");   // 钟没校上就不编一个时间出来
     }
     lv_label_set_text(s_clock, buf);
-    battery_update(battery_pct);
+    battery_update(&s_batt, battery_pct);
     wifi_update(rssi);
 
     const size_t shown = data->count < NP_MAX_DEVICES ? data->count : NP_MAX_DEVICES;
@@ -686,25 +693,35 @@ void np_ui_status_hint(const char *text)
 // ------------------------------------------------------------- 状态页标题
 // Tailscale 官方 mark 就是 9 枚圆点(几何照 assets/icons/tailscale-favicon.svg 描,
 // 表在 np_logo.c)。这个尺寸下点阵图标会糊成一团,所以走 s_wifi_dot 那套 lv_obj 圆盘。
+// 两处共用同一份绘制:状态页标题旁(大)与 AOD 页 x/y 上方(小),颜色/衰减只此
+// 一份,改一处两屏都跟着走。dots_out 非空时逐枚回填指针(AOD 页要按 has_count
+// 整组显隐,不能整个删)。
 #define LOGO_X 12
 #define LOGO_Y 11
 #define TITLE_X (LOGO_X + NP_LOGO_BOX + 6)
 
-static void status_logo(lv_obj_t *scr)
+static void logo_dots(lv_obj_t *scr, int box_x, int box_y, int r, uint32_t color,
+                      lv_obj_t **dots_out)
 {
     for (int i = 0; i < NP_LOGO_DOTS; i++) {
         const np_logo_dot_t *d = &np_logo_dots[i];
         lv_obj_t *dot = lv_obj_create(scr);
-        lv_obj_set_size(dot, NP_LOGO_R * 2, NP_LOGO_R * 2);
-        lv_obj_set_pos(dot, LOGO_X + d->cx - NP_LOGO_R, LOGO_Y + d->cy - NP_LOGO_R);
+        lv_obj_set_size(dot, r * 2, r * 2);
+        lv_obj_set_pos(dot, box_x + d->cx - r, box_y + d->cy - r);
         lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_width(dot, 0, 0);
-        lv_obj_set_style_bg_color(dot, lv_color_hex(UI_TEXT), 0);
+        lv_obj_set_style_bg_color(dot, lv_color_hex(color), 0);
         // 官方文件里背景那一组是 opacity: 0.4,照搬。
         lv_obj_set_style_bg_opa(dot, d->faded ? LV_OPA_40 : LV_OPA_COVER, 0);
         lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_clickable(dot, false);
+        if (dots_out) dots_out[i] = dot;
     }
+}
+
+static void status_logo(lv_obj_t *scr)
+{
+    logo_dots(scr, LOGO_X, LOGO_Y, NP_LOGO_R, UI_TEXT, NULL);
 }
 
 void np_ui_show_status(const char *line1, const char *line2, const char *line3,
@@ -938,27 +955,45 @@ void np_ui_settings_save_and_back(void)
     }
 }
 
-// ------------------------------------------------------------- 熄屏显示
+// Tailscale mark above the off-screen display's x/y: the big time is around y≈100,
+// x/y is at y≈194, and the band between the two lines is just enough to fit an r=2 nine-dot mark,
+// horizontally centered, placed between time and x/y. When has_count is false, hide
+// the mark together with x/y.
+#define AOD_MARK_R 2
+#define AOD_MARK_X (120 - NP_LOGO_BOX / 2)
+#define AOD_MARK_Y 164
+
+// ------------------------------------------------------------- Off-screen display
 static void aod_build(void)
 {
     if (s_aod_scr) return;
     s_aod_scr = mk_screen();
-    // 标签不设固定宽度、文本自适应,LV_ALIGN_CENTER 才会真正水平居中:
-// 设宽 240 加左对齐会把文字推到右边,用户实测看起来不居中。
+    // Labels must not have fixed width — the text must adapt its size. Only when using LV_ALIGN_CENTER will it be truly horizontally centered:
+// setting width to 240 with left alignment will push the text to the right side. In actual user testing, it looked off-center.
     s_aod_time = mk_label(s_aod_scr, 0, 0, UI_TEXT, &lv_font_montserrat_48);
     lv_label_set_text(s_aod_time, "--:--");
     lv_obj_align(s_aod_time, LV_ALIGN_CENTER, 0, -40);
-    // 设备数 x/y:x = 在线数,y = 总数;比 np-0.2.9 再大两档(Montserrat 28)。
+    // Device count x/y: x = online count, y = total; bumped up by two more degrees from np-0.2.9 (Montserrat 28).
     s_aod_online = mk_label(s_aod_scr, 0, 0, UI_MUTED, &lv_font_montserrat_28);
     lv_label_set_text(s_aod_online, "0/0");
     lv_obj_align(s_aod_online, LV_ALIGN_CENTER, 0, 48);
+    // Battery icon: top-right uses the same geometry as the list header (that copy is the only one that won't be
+    // stolen when the off-screen display screen and the list page exist simultaneously). Nine-dot Tailscale mark:
+    // above x/y, set to hidden at screen construction time, and shown when device counter is ready.
+    battery_create(s_aod_scr, &s_aod_batt);
+    logo_dots(s_aod_scr, AOD_MARK_X, AOD_MARK_Y, AOD_MARK_R, UI_MUTED, s_aod_mark);
+    for (int i = 0; i < NP_LOGO_DOTS; i++)
+        lv_obj_add_flag(s_aod_mark[i], LV_OBJ_FLAG_HIDDEN);
 }
 
-// 设备数 x/y 的显示与布局:has_count 为 false(还没成功读到主机列表)时隐藏
-// 设备数、时间居中;为 true 时显示 x/y、时间上移。调用方须持有 LVGL 锁。
-static void aod_set_count(bool has_count, uint32_t online, uint32_t total)
+// Drawing of x/y, the Tailscale mark, and battery: when has_count is false (the host list hasn't successfully appeared yet),
+// hide the device counter and mark, and center the time; when true, show x/y, shift the mark up by one level, and move the time up as well.
+// The caller must hold the LVGL lock.
+static void aod_paint(int battery_pct, bool has_count, uint32_t online,
+                      uint32_t total)
 {
     if (!s_aod_scr) return;
+    battery_update(&s_aod_batt, battery_pct);
     if (has_count) {
         lv_obj_remove_flag(s_aod_online, LV_OBJ_FLAG_HIDDEN);
         char buf[16];
@@ -966,28 +1001,34 @@ static void aod_set_count(bool has_count, uint32_t online, uint32_t total)
         lv_label_set_text(s_aod_online, buf);
         lv_obj_align(s_aod_online, LV_ALIGN_CENTER, 0, 48);
         lv_obj_align(s_aod_time, LV_ALIGN_CENTER, 0, -40);
+        for (int i = 0; i < NP_LOGO_DOTS; i++)
+            lv_obj_remove_flag(s_aod_mark[i], LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(s_aod_online, LV_OBJ_FLAG_HIDDEN);
+        for (int i = 0; i < NP_LOGO_DOTS; i++)
+            lv_obj_add_flag(s_aod_mark[i], LV_OBJ_FLAG_HIDDEN);
         lv_obj_align(s_aod_time, LV_ALIGN_CENTER, 0, 0);
     }
 }
 
-void np_ui_aod_show(const char *hm, uint32_t online, uint32_t total, bool has_count)
+void np_ui_aod_show(const char *hm, int battery_pct, uint32_t online,
+                    uint32_t total, bool has_count)
 {
     fonts_init();
     aod_build();
     if (!s_aod_scr) return;
     if (hm && hm[0]) lv_label_set_text(s_aod_time, hm);
-    aod_set_count(has_count, online, total);
+    aod_paint(battery_pct, has_count, online, total);
     lv_screen_load(s_aod_scr);
     s_view = NP_VIEW_AOD;
 }
 
-void np_ui_aod_update(const char *hm, uint32_t online, uint32_t total, bool has_count)
+void np_ui_aod_update(const char *hm, int battery_pct, uint32_t online,
+                      uint32_t total, bool has_count)
 {
     if (s_view != NP_VIEW_AOD || !s_aod_scr) return;
     if (hm && hm[0]) lv_label_set_text(s_aod_time, hm);
-    aod_set_count(has_count, online, total);
+    aod_paint(battery_pct, has_count, online, total);
 }
 
 // ------------------------------------------------------------- 按键

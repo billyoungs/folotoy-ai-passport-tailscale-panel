@@ -362,20 +362,14 @@ static void err_src(np_err_src_t *src)
     src->too_big = f->too_big;
 }
 
-// 多网络记忆:连之前先看附近有哪些已记住的网,挑信号最强的连。只有一个
-// 记忆时不值得花一两秒扫描(直连最近用的);扫描失败也不拦路,按最近用的
-// 盲连 —— 扫描是优化,不该成为新的故障点。扫描成功但一张已记住的网都不
-// 在附近,就明说,不烧满连接超时才落到重试页。
+// 多网络记忆:连之前先看附近有哪些已记住的网,挑信号最强的那个作为活动
+// 配对。只有一张记忆时不花扫描(直连最近用的);多张时交 app_wifi_preflight_
+// roam:扫描若被驱动的"死旧网连接循环"拒绝,它在内部把栈推回空闲再扫,手动
+// 重试也换得动网。返回 false = 已记住的网一张都不在附近,如实报,不烧超时。
 static bool wifi_pick_known(void)
 {
     if (app_cfg_wifi_count() <= 1u) return true;
-    np_scan_ap_t aps[NP_SCAN_KEEP];
-    size_t n = 0;
-    if (app_wifi_scan(NULL, aps, NP_SCAN_KEEP, &n) != ESP_OK) return true;
-    const int pick = app_cfg_wifi_pick(aps, n);
-    if (pick < 0) return false;
-    (void)app_cfg_wifi_select((size_t)pick);
-    return true;
+    return app_wifi_preflight_roam(true);
 }
 
 static bool wifi_connect_and_run(void)
@@ -606,7 +600,12 @@ static void handle_key(const app_ev_t *key)
         }
         if (btn == BSP_BTN_OK && ev == BSP_BTN_CLICK) {
             if (!app_cfg_has_wifi()) { enter_boot(); return; }
-            if (app_wifi_init() == ESP_OK && wifi_connect_and_run()) {
+            // 手动重试前先把整栈推回空闲:旧 STA 可能正停在"对死旧网的连接
+            // 循环"里,那种状态下连选网要用的第一个扫描都被驱动打回
+            // ESP_ERR_WIFI_STATE,blind-connect 只会烧掉 20 秒超时。重建后站
+            // 台空闲,先扫描选网、再按选中的网连接(多网络移动后的实机教训)。
+            (void)app_wifi_restart();
+            if (wifi_connect_and_run()) {
                 np_poll_init(&s_poll, app_cfg_poll_base_s(), app_cfg_poll_cap_s());
                 s_state = ST_RUN;
                 clear_status();
@@ -907,8 +906,8 @@ static void poll_task(void *arg)
     }
 }
 
-// 进入熄屏:AOD 开则切到时间+在线数页(低亮度常显),否则直接关背光。
-// 只在 ST_RUN 调(配网页/热点页要一直亮着读信息)。
+// 进入熄屏:AOD 开则切到"时间 + Tailscale 标志 + 在线数 + 电池"页
+// (低亮度常显),否则直接关背光。只在 ST_RUN 调(配网页/热点页要一直亮着读信息)。
 static void enter_screen_off(void)
 {
     if (app_cfg_aod_enabled()) {
@@ -918,7 +917,7 @@ static void enter_screen_off(void)
                               app_cfg_tz_offset_s());
             const np_list_t *snap = np_lists_active();
             const size_t online = np_list_online_count(snap);
-            np_ui_aod_show(hm, online, snap->total, s_last_sync > 0);
+            np_ui_aod_show(hm, s_battery, online, snap->total, s_last_sync > 0);
             bsp_lvgl_unlock();
         }
         bsp_display_backlight(20);
@@ -998,14 +997,15 @@ static void app_task(void *arg)
                                             app_cfg_off_minutes())) {
                 enter_screen_off();
             }
-            // 熄屏显示开启时,每秒刷新 AOD 页的时间与在线数。
+            // 熄屏显示开启时,每秒刷新 AOD 页的时间、在线数与电池。
             if (s_aod_active && bsp_lvgl_lock(500)) {
                 char hm[8];
                 np_time_format_hm(hm, sizeof(hm), (int64_t)time(NULL),
                                   app_cfg_tz_offset_s());
                 const np_list_t *snap = np_lists_active();
                 const size_t online = np_list_online_count(snap);
-                np_ui_aod_update(hm, online, snap->total, s_last_sync > 0);
+                np_ui_aod_update(hm, s_battery, online, snap->total,
+                                 s_last_sync > 0);
                 bsp_lvgl_unlock();
             }
             // 配对码页停在屏幕上时列表/详情都不再重绘,页上的地址只能专门复查。

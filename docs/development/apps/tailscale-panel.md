@@ -218,15 +218,40 @@ through the bootstrap hotspot. Three things changed:
 
 The ladder always re-fires the one active network from the configuration — and
 once the device has been carried to another environment, that network is no
-longer on the air, so kicking it cannot ever succeed. Since `np-0.2.7` a
-roaming layer hangs off the ladder's kick points: from the 2nd try on, at most
-once every 30 s, at the moment the ladder is about to kick — the only moment
-the radio is known to be idle — it scans once, promotes the strongest
-remembered network to the active pair, and kicks that instead. With a single
-memory there is nothing worth scanning for, and if none of the networks found
-is remembered the configuration stays untouched. The swap lives in memory
-only; persistence still waits for the next save, and the boot path re-scans
-and re-picks anyway.
+longer on the air, so kicking it can never succeed. A roaming layer therefore
+hangs off the ladder's kick points: at most once every 30 s, right before the
+kick, a selection scan runs and promotes the strongest remembered network to
+the active pair. That is the `np-0.2.7` design; the culprit is the scan's
+radio window. Once the STA is inside the driver's connection loop for a network
+that is no longer on the air, the loop never ends and every
+`esp_wifi_scan_start` during it is refused with `ESP_ERR_WIFI_STATE` — so the
+old selection scans all came back empty and the panel never switched while the
+user walked between two known WiFis (fixed in `np-0.2.12`):
+
+*  A refused selection scan is answered by rebuilding the stack idle
+  (`app_wifi_restart()`): the app cannot interrupt the driver's loop, and the
+  only reliable exit is tearing it down — a fresh stack has never requested a
+  connection, so the loop does not exist and scanning succeeds. Rebuilt, the
+  scan runs again in the same step; the ladder's rebuild tier likewise
+  rebuilds, re-arms the staircase, and forces a selection before kicking.
+  Before, the rebuild tier kicked the stale network straight away, closing the
+  window again before the next attempt — the loop repeated forever.
+*  The disconnect handler no longer calls `esp_wifi_connect()` for the
+  non-auth reasons: the driver gives itself one internal retry when the link
+  drops, and that retry cannot finish for a network that is no longer in
+  range — our extra kick restarted the loop and stole the radio window the
+  very next selection scan needed. The ladder's 3 s step covers the same-network case.
+*  A full scan returns only the strongest `NP_SCAN_KEEP` (12) entries; dense
+  surrounding APs push a weak remembered network off the list, and the old
+  code read "not in the list" as "not nearby". A remembered network missing
+  from the list now gets a directed scan of its own (SSID-filtered, tens of
+  milliseconds), and the strongest promoted.
+*  Manual retry goes through the same selection path: OK on the retry page
+  rebuilds the stack idle first, then scans, selects and connects.
+
+The swap lives in memory only; persistence still waits for the next save, and
+the boot path re-scans and re-picks anyway. With a single memory there is
+nothing worth scanning: the ladder kicks the remembered one directly.
 
 The ladder resets on a successful association; repeat disconnect events do not
 pull it back to the first step, which would otherwise spin at 3 s forever
@@ -897,13 +922,16 @@ to the list and persists in one go.
   AOD page at 20% brightness.
 - **Always-on display:** when on (`aod` = 1), the AOD page is truly centred
   horizontally (the labels auto-size rather than sitting left-aligned inside a
-  fixed 240 px box): the current time `HH:MM` in a large font (Montserrat 48),
-  with the device count `x/y` below it (x = online, y = total) in Montserrat
-  28 — two tiers larger since `np-0.2.10` — refreshed every second. Until the
-  first successful read of the Tailscale host list, the `x/y` count is hidden
-  and only the time is shown centred (since `np-0.2.11`), so an inaccurate
-  online count is never shown before the data actually arrives. When off, sleep
-  simply blanks the screen.
+  fixed 240 px box): the current time `HH:MM` in a large font (Montserrat 48);
+  below it the Tailscale nine-dot mark with the device count `x/y` (x =
+  online, y = total) in Montserrat 28 — two tiers larger since `np-0.2.10`;
+  the battery icon top right keeps the list header's geometry and level
+  rule. The mark, the battery icon, and the mark hiding with `x/y` before the
+  host list arrives are from `np-0.2.12` / `np-0.2.11` respectively. The page
+  refreshes every second. Until the first successful read of the Tailscale
+  host list, the mark and `x/y` count are hidden and only the time is shown
+  centred (since `np-0.2.11`), so an inaccurate online count is never shown
+  before the data actually arrives. When off, sleep simply blanks the screen.
 - **Network configuration:** since `np-0.2.9` the status page's action menu is
   folded into settings — the sub-page lists sync now / LAN configuration /
   start the guide hotspot / clear credentials, behaving exactly like the status
