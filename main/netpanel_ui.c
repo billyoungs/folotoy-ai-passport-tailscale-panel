@@ -36,6 +36,15 @@ LV_FONT_DECLARE(lv_font_montserrat_48);
 #define UI_ROW_LINE  0x18243Au
 #define UI_BAR_OFF   0x2B3B55u
 
+// 亮度调节条几何(240x320):轨道整条 + 填充从左端内缩一个半径,
+// 方块填充的直角不会戳出轨道的圆角帽。
+#define BR_BAR_X      14
+#define BR_BAR_Y      140
+#define BR_BAR_W      212
+#define BR_BAR_H      14
+#define BR_BAR_RADIUS 7
+#define BR_GAP        2
+
 static lv_font_t s_font14, s_font20;
 static bool s_font_ready;
 
@@ -62,6 +71,8 @@ static size_t s_action_sel;
 static lv_obj_t *s_settings_scr;
 static size_t s_setting_sel;
 static lv_obj_t *s_brightness_val;   // 亮度子模式下的大数值标签(只更新不重建)
+static lv_obj_t *s_brightness_track; // 亮度调节条轨道
+static lv_obj_t *s_brightness_fill;  // 亮度调节条填充(宽度随亮度,实时预览)
 static size_t s_interval_sel;
 static size_t s_net_sel;             // 网络配置子菜单选中下标(复用 np_menu 契约)
 static lv_obj_t *s_aod_scr, *s_aod_time, *s_aod_online;
@@ -821,7 +832,17 @@ static void settings_main_values(char values[SET_ROW_COUNT][24])
     values[3][0] = '\0';
 }
 
-// 整屏重绘(除亮度子模式只更新数值标签外)。调用方须持有 LVGL 锁。
+// 亮度调节条填充宽度按当前亮度实时变宽(跟电量条同式:左端内缩一个半径,直角不戳出圆角轨道)。
+static void brightness_bar_update(uint8_t pct)
+{
+    if (!s_brightness_fill) return;
+    const int inner_w = BR_BAR_W - 2 * BR_BAR_RADIUS;
+    int fill_w = inner_w * pct / 100;
+    if (fill_w < 1) fill_w = 1;   // 最暗也留一格
+    lv_obj_set_width(s_brightness_fill, fill_w);
+}
+
+// 整屏重绘(除亮度子模式只更新数值与调节条外)。调用方须持有 LVGL 锁。
 static void paint_settings(void)
 {
     if (!s_settings_scr) return;
@@ -832,8 +853,27 @@ static void paint_settings(void)
         lv_label_set_text(title, "屏幕亮度");
         char val[16];
         snprintf(val, sizeof(val), "%u%%", (unsigned)app_cfg_brightness());
-        s_brightness_val = mk_label(s_settings_scr, 14, 110, UI_ACCENT, &s_font20);
+        s_brightness_val = mk_label(s_settings_scr, 14, 100, UI_ACCENT, &s_font20);
         lv_label_set_text(s_brightness_val, val);
+
+        s_brightness_track = lv_obj_create(s_settings_scr);
+        lv_obj_set_size(s_brightness_track, BR_BAR_W, BR_BAR_H);
+        lv_obj_set_pos(s_brightness_track, BR_BAR_X, BR_BAR_Y);
+        lv_obj_set_style_bg_color(s_brightness_track, lv_color_hex(UI_BAR_OFF), 0);
+        lv_obj_set_style_border_width(s_brightness_track, 0, 0);
+        lv_obj_set_style_radius(s_brightness_track, BR_BAR_RADIUS, 0);
+        lv_obj_remove_flag(s_brightness_track, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_clickable(s_brightness_track, false);
+
+        s_brightness_fill = lv_obj_create(s_settings_scr);
+        lv_obj_set_size(s_brightness_fill, 1, BR_BAR_H - 2 * BR_GAP);
+        lv_obj_set_pos(s_brightness_fill, BR_BAR_X + BR_BAR_RADIUS, BR_BAR_Y + BR_GAP);
+        lv_obj_set_style_bg_color(s_brightness_fill, lv_color_hex(UI_ACCENT), 0);
+        lv_obj_set_style_border_width(s_brightness_fill, 0, 0);
+        lv_obj_remove_flag(s_brightness_fill, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_clickable(s_brightness_fill, false);
+        brightness_bar_update(app_cfg_brightness());
+
         settings_hint("上下调节 长按返回");
         return;
     }
@@ -1125,12 +1165,13 @@ np_key_result_t np_ui_handle_key(bsp_btn_t btn, bsp_btn_ev_t ev)
                 const uint8_t v = np_display_cfg_clamp_brightness(
                                       (int)app_cfg_brightness() + step);
                 (void)app_cfg_set_brightness(v);
-                bsp_display_backlight(v);   // 实时生效
+                bsp_display_backlight(v);   // 实时生效(背光与调节条同步预览)
                 if (s_brightness_val) {
                     char val[16];
                     snprintf(val, sizeof(val), "%u%%", (unsigned)v);
                     lv_label_set_text(s_brightness_val, val);
                 }
+                brightness_bar_update(v);   // 调节条填充同步变宽
             }
         } else if (s_settings_mode == SET_INTERVAL) {
             if (btn == BSP_BTN_UP && s_interval_sel > 0) {

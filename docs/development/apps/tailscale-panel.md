@@ -16,7 +16,7 @@ and no cloud relay.
 | Device list (OS glyph + online dot + name; date on the left of the header, time in the middle, Wi-Fi and battery glyphs on the right) | Up/Down select, OK opens detail; OK long-press opens system settings; with an empty list OK opens the status view |
 | Device detail (state line plus ten rows: address, OS, client, owner, tags, key, last online, joined, relay, routes; the rows scroll vertically when they do not fit on one screen) | Up/Down scroll and stop at the top or bottom; OK opens status; OK long-press returns to the list |
 | Tailscale monitor panel menu (head: the official mark, the product name and the version; items: sync now, LAN configuration, start the guide hotspot, clear credentials; the body carries the account and login state and the poll cadence) | Up/Down pick an item, OK runs it; OK long-press back |
-| System settings (title plus four rows: screen brightness / auto-sleep timeout / AOD toggle / network configuration, current value on the right; sub-pages are brightness stepping, the sleep-tier list, the AOD switch, and the four provisioning actions) | Up/Down select, OK enters a sub-page, toggles or runs an action; inside a sub-page Up/Down adjusts or selects and OK confirms; OK long-press returns to the list and saves |
+| System settings (title plus four rows: screen brightness / auto-sleep timeout / AOD toggle / network configuration, current value on the right; sub-pages are the brightness adjustment bar, the sleep-tier list, the AOD switch, and the four provisioning actions) | Up/Down select, OK enters a sub-page, toggles or runs an action; inside a sub-page Up/Down adjusts or selects and OK confirms; OK long-press returns to the list and saves |
 
 OK long-press on any sub-page returns to the list; on the list itself that same
 press opens system settings. The left cell of
@@ -920,10 +920,12 @@ reachable via OK on the detail page). The settings home has four rows with the
 current value on the right; OK enters a sub-page, and a long-press of OK returns
 to the list and persists in one go.
 
-- **Screen brightness:** UP/DOWN steps by 5% in the sub-page and
-  `bsp_display_backlight()` takes effect immediately; only RAM is touched and
-  NVS (`bri`, 1..100) is written when leaving settings, avoiding frequent flash
-  wear.
+- **Screen brightness:** the sub-page shows the level as a live adjustment bar
+  (a rounded track with a filled portion that grows left-to-right with the
+  level) next to the big `NN%` label. UP/DOWN adjusts in 5% steps and
+  `bsp_display_backlight()` takes effect immediately (`np-0.2.16`); only RAM is
+  touched and NVS (`bri`, 1..100) is written when leaving settings, avoiding
+  frequent flash wear.
 - **Auto-sleep timeout:** tiers = never / 1 / 5 / 10 / 30 minutes / 1 / 2 hours
   (`offm`, minutes, 0 = never). When the timeout fires with AOD off,
   `bsp_display_backlight(0)` blanks the screen; with AOD on it switches to the

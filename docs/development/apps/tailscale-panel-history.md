@@ -940,7 +940,39 @@ content-addressed `build/firmware/<sha256>/` bundles.
   (checks: AOD stays at 20% and waking returns to the configured brightness;
   the np-0.2.14 credentials-jump re-test).
 
-## Standing deferrals (as of np-0.2.15)
+## np-0.2.16 — feat(settings): the brightness sub-page is a live adjustment bar
+
+- The brightness sub-page stopped being "one large percentage label" and became
+  a real-time-preview **adjustment bar**: a rounded track whose filled portion
+  grows left-to-right with the level, drawn exactly like the battery gauge
+  (track `UI_BAR_OFF`, fill `UI_ACCENT`, the fill inset one track radius on the
+  left so its square leading edge never pokes out of the rounded rail). The
+  big `NN%` label stays above it. UP/DOWN still step by 5%, and the bar fill
+  and the backlight update together so the preview matches what the screen
+  actually shows.
+- Only the on-screen control moved for this page. The RAM-only /
+  write-NVS-on-exit rule is unchanged, and the np-0.2.15 AOD brightness
+  restore is untouched.
+- `main/np_inventory.c` regenerated to **1002** codepoints (was 1000); because
+  the source-file list passed to `extract_chars.py` had dropped
+  `tests/test_np_errfmt.c` and `tests/test_np_account.c`, the checked set is now
+  taken straight from `--static` so no glyph can be missed again. No new
+  UI-rendered glyph is needed — the comment characters already exist in the
+  subset, so the font only grew.
+- `--static` PASS (`Repository checks` 434 files / `Host tests` PASS;
+  inventory consistent at 1002). Image
+  `build/FoloToy-AI-Passport-full-np-0.2.16.bin`, 2072288 bytes (+4464 vs
+  np-0.2.15), sha256
+  `f049fd9e06cb55f17f477e5a9f3a3e8ae40dec9221eed0869fdff469882bedea`; app ELF
+  `8d7fe23749f715552f07dc3baab885f915839e19a6045e00a9eec7b065dee9b4`; map
+  `.dram0.bss` `0x1b5d8` (was 0x1b5c8 — only the two new static bar pointers),
+  `work_mem_int` `0x10000` unchanged. Firmware version gate: PASS (np-0.2.16).
+  **Awaiting a device flash** (check: set brightness to a level such as 60%,
+  open the brightness sub-page, press UP/DOWN — the fill grows/shrinks in 5%
+  steps and the backlight responds; leave and wake — the restored level is the
+  remembered one, not the 20% AOD level).
+
+## Standing deferrals (as of np-0.2.16)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -959,7 +991,8 @@ content-addressed `build/firmware/<sha256>/` bundles.
   were flashed: the roaming and AOD checks ran on device, and the
   credentials-jump regression was fixed in np-0.2.14, which was then flashed
   and confirmed to open the credentials LAN page correctly. np-0.2.15 (AOD
-  brightness handling) awaits a device flash.
+  brightness handling) and np-0.2.16 (the brightness adjustment bar) await a
+  device flash.
 
 ## Repository rename (2026-11-09)
 
