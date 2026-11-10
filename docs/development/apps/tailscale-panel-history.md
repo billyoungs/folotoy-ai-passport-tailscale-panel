@@ -972,7 +972,39 @@ content-addressed `build/firmware/<sha256>/` bundles.
   steps and the backlight responds; leave and wake — the restored level is the
   remembered one, not the 20% AOD level).
 
-## Standing deferrals (as of np-0.2.16)
+## np-0.2.17 — feat(aod): a date under the time, the Tailscale mark inline before x/y
+
+- The AOD page now shows the date `M/D` (Montserrat 20, muted) directly under
+  the big time, formatted from the same `time(NULL)` read as the hours and
+  minutes with the configured timezone offset — no second clock sample.
+- The nine-dot mark left its separate spot above the count and sits **just
+  left of `x/y` on the same line**. The mark + count pair is centered as a
+  group: the label's rendered width is measured under the LVGL lock, the mark
+  is placed at the group's left edge, and the label's centre is shifted so the
+  whole line reads "mark x/y" balanced around the screen centre.
+- Vertical rhythm adapts: with the count line the three rows sit at −52 / 0 /
+  +48 px from the centre; without it (before the first host-list sync) the page
+  shows just time and date, a centred pair at −28 / +28, with mark and count
+  hidden as before (`np-0.2.11`).
+- `np_ui_aod_show()` / `np_ui_aod_update()` now take the preformatted date
+  beside the time; the 1-second tick refreshes time, date, count and battery.
+- Inventory regenerated to **1003** codepoints (was 1002 — one new glyph from
+  Chinese comments; the file list is taken straight from the `--static` check,
+  so nothing can be missed); font subsets regenerated accordingly (1098
+  codepoints covered = 1003 CJK + 95 ASCII).
+- `--static` PASS (`Repository checks` 434 files / `Host tests` PASS;
+  inventory consistent at 1003). Image
+  `build/FoloToy-AI-Passport-full-np-0.2.17.bin`, 2073008 bytes (+720 vs
+  np-0.2.16), sha256
+  `d8cc103d8e7a40d99d45eaa1055ac2d281575ef9eb74814717c54a062a77fd8c`; app ELF
+  `a58df6e3ab0613d86c7e2cb93a9107404ba7f81f5aa288090212279f788e788d`; map
+  `.dram0.bss` `0x1b5d8` unchanged, `work_mem_int` `0x10000` unchanged.
+  Firmware version gate: PASS (np-0.2.17). **Awaiting a device flash** (check:
+  AOD shows the date under the time; the nine-dot mark sits left of `x/y` on
+  one centred line; a no-count boot shows time and date only; the np-0.2.15
+  brightness restore still works).
+
+## Standing deferrals (as of np-0.2.17)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -991,8 +1023,8 @@ content-addressed `build/firmware/<sha256>/` bundles.
   were flashed: the roaming and AOD checks ran on device, and the
   credentials-jump regression was fixed in np-0.2.14, which was then flashed
   and confirmed to open the credentials LAN page correctly. np-0.2.15 (AOD
-  brightness handling) and np-0.2.16 (the brightness adjustment bar) await a
-  device flash.
+  brightness handling), np-0.2.16 (the brightness adjustment bar) and
+  np-0.2.17 (AOD date line and inline mark) await a device flash.
 
 ## Repository rename (2026-11-09)
 

@@ -934,16 +934,19 @@ to the list and persists in one go.
   back into the normal display (`np-0.2.15`).
 - **Always-on display:** when on (`aod` = 1), the AOD page is truly centred
   horizontally (the labels auto-size rather than sitting left-aligned inside a
-  fixed 240 px box): the current time `HH:MM` in a large font (Montserrat 48);
-  below it the Tailscale nine-dot mark with the device count `x/y` (x =
-  online, y = total) in Montserrat 28 — two tiers larger since `np-0.2.10`;
-  the battery icon top right keeps the list header's geometry and level
-  rule. The mark, the battery icon, and the mark hiding with `x/y` before the
-  host list arrives are from `np-0.2.12` / `np-0.2.11` respectively. The page
-  refreshes every second. Until the first successful read of the Tailscale
-  host list, the mark and `x/y` count are hidden and only the time is shown
-  centred (since `np-0.2.11`), so an inaccurate online count is never shown
-  before the data actually arrives. When off, sleep simply blanks the screen.
+  fixed 240 px box): the current time `HH:MM` in a large font (Montserrat 48)
+  on top, the date `M/D` below it (Montserrat 20, since `np-0.2.17`), and
+  under that the device count `x/y` (x = online, y = total) in Montserrat 28
+  — two tiers larger since `np-0.2.10` — on one line with the Tailscale
+  nine-dot mark sitting just left of the number (`np-0.2.17`), the pair
+  centred as a group; the battery icon top right keeps the list header's
+  geometry and level rule. The mark, the battery icon, and the mark hiding
+  with `x/y` before the host list arrives are from `np-0.2.12` / `np-0.2.11`
+  respectively. The page refreshes every second. Until the first successful
+  read of the Tailscale host list, the mark and `x/y` count are hidden and
+  only the time and date are shown centred (since `np-0.2.11`), so an
+  inaccurate online count is never shown before the data actually arrives.
+  When off, sleep simply blanks the screen.
 - **Network configuration:** since `np-0.2.9` the status page's action menu is
   folded into settings — the sub-page lists sync now / LAN configuration /
   start the guide hotspot / clear credentials, behaving exactly like the status

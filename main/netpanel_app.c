@@ -940,7 +940,7 @@ static void poll_task(void *arg)
     }
 }
 
-// 进入熄屏:AOD 开则切到"时间 + Tailscale 标志 + 在线数 + 电池"页
+// 进入熄屏:AOD 开则切到"时间 + 日期 + 标志与在线数 + 电池"页
 // (低亮度常显),否则直接关背光。只在 ST_RUN 调(配网页/热点页要一直亮着读信息)。
 static void enter_screen_off(void)
 {
@@ -950,12 +950,16 @@ static void enter_screen_off(void)
     s_brightness_saved = app_cfg_brightness();
     if (app_cfg_aod_enabled()) {
         if (bsp_lvgl_lock(500)) {
-            char hm[8];
-            np_time_format_hm(hm, sizeof(hm), (int64_t)time(NULL),
+            char hm[8], md[8];
+            const time_t now = time(NULL);
+            np_time_format_hm(hm, sizeof(hm), (int64_t)now,
+                              app_cfg_tz_offset_s());
+            np_time_format_md(md, sizeof(md), (int64_t)now,
                               app_cfg_tz_offset_s());
             const np_list_t *snap = np_lists_active();
             const size_t online = np_list_online_count(snap);
-            np_ui_aod_show(hm, s_battery, online, snap->total, s_last_sync > 0);
+            np_ui_aod_show(hm, md, s_battery, online, snap->total,
+                           s_last_sync > 0);
             bsp_lvgl_unlock();
         }
         bsp_display_backlight(20);
@@ -1044,14 +1048,17 @@ static void app_task(void *arg)
                                             app_cfg_off_minutes())) {
                 enter_screen_off();
             }
-            // 熄屏显示开启时,每秒刷新 AOD 页的时间、在线数与电池。
+            // 熄屏显示开启时,每秒刷新 AOD 页的时间、日期、在线数与电池。
             if (s_aod_active && bsp_lvgl_lock(500)) {
-                char hm[8];
-                np_time_format_hm(hm, sizeof(hm), (int64_t)time(NULL),
+                char hm[8], md[8];
+                const time_t now = time(NULL);
+                np_time_format_hm(hm, sizeof(hm), (int64_t)now,
+                                  app_cfg_tz_offset_s());
+                np_time_format_md(md, sizeof(md), (int64_t)now,
                                   app_cfg_tz_offset_s());
                 const np_list_t *snap = np_lists_active();
                 const size_t online = np_list_online_count(snap);
-                np_ui_aod_update(hm, s_battery, online, snap->total,
+                np_ui_aod_update(hm, md, s_battery, online, snap->total,
                                  s_last_sync > 0);
                 bsp_lvgl_unlock();
             }
