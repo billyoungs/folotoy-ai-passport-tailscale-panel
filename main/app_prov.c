@@ -768,7 +768,10 @@ out:
         ESP_LOGE(TAG, "配置服务启动失败: %s", esp_err_to_name(err));
         if (s_hd) { httpd_stop(s_hd); s_hd = NULL; }
         if (mode == NP_PROV_SOFTAP) teardown_softap();
-        else mdns_service_remove_all();
+        else {
+            mdns_service_remove_all();
+            mdns_free();   // 只 remove 不 free 会让下次 mdns_init 撞上已初始化而失败
+        }
         s_mode = NP_PROV_OFF;
     }
     return err;

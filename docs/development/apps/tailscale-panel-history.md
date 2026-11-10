@@ -891,12 +891,38 @@ content-addressed `build/firmware/<sha256>/` bundles.
   (-32 vs np-0.2.12), sha256
   `f842eef5b4abb2786f0d9149be0f0407c7a1a7e3b96fa2fae9d04fce7b35d326`; map
   `.dram0.bss` `0x1b5c8` (unchanged), `work_mem_int` `0x10000` unchanged.
-  Embedded version check: PASS (np-0.2.13). **Awaiting a device flash**
-  (checks: re-provision over SoftAP and the credentials page opens immediately;
-  roaming from np-0.2.12 still switches networks on its own; the AOD battery
-  icon and mark from np-0.2.12).
+  Embedded version check: PASS (np-0.2.13). **Flashed, issue remained:** the
+  credentials page still did not open on device; the one-shot boot/self-heal
+  attempts missed the real failure mode — fixed in np-0.2.14 below.
 
-## Standing deferrals (as of np-0.2.13)
+## np-0.2.14 — fix(prov): the credentials page retries until it actually opens
+
+- Feedback on the np-0.2.13 flash: the device still did not jump to the
+  Tailscale-credentials LAN page after Wi-Fi came up; it ran time sync and sat
+  on an empty host list. The previous fix removed the scan-failure gate, but
+  the auto-open was still a single shot — only `enter_boot` and the
+  `ST_WIFI_RETRY` self-heal called it, the manual OK retry did not, and any
+  transient failure of the LAN-service start left the user on the empty list
+  for the whole boot.
+- The credentials page now opens through four equivalent paths sharing one rule
+  (`maybe_prompt_credentials()`): `enter_boot`, the link-recovery self-heal,
+  the manual OK retry, and a new throttled `ensure_credentials_prompt()` in the
+  `ST_RUN` tick that retries every 3 s while there are no stored Tailscale
+  credentials, the prompt was not dismissed, and the link is up. A failed
+  LAN-service start now also frees mDNS in `app_prov_start()`, so the retry can
+  succeed instead of hitting an already-initialised mDNS forever.
+- `--static` is green (`Repository checks` 434 files / `Host tests` PASS;
+  inventory regenerated to 1000 codepoints from the new comment glyphs). Image
+  `build/FoloToy-AI-Passport-full-np-0.2.14.bin`, 2067808 bytes (+144 vs
+  np-0.2.13), sha256
+  `7af1b3328f8670898b90456db689120f3d003c75a106dc99046c60eb8dd7ab72`; map
+  `.dram0.bss` `0x1b5c8` (unchanged), `work_mem_int` `0x10000` unchanged.
+  Embedded version check: PASS (np-0.2.14). **Awaiting a device flash**
+  (check: with no Tailscale credentials stored, the LAN page opens promptly
+  after Wi-Fi is up, whether the device boots clean, auto-recovers from the
+  retry page, or the user retries manually).
+
+## Standing deferrals (as of np-0.2.14)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -911,9 +937,10 @@ content-addressed `build/firmware/<sha256>/` bundles.
   np-0.2.2.
 - The np-0.2.0 / np-0.2.1 / np-0.2.2 / np-0.2.3 / np-0.2.4 / np-0.2.5 /
   np-0.2.6 / np-0.2.7 / np-0.2.8 / np-0.2.9 / np-0.2.10 / np-0.2.11 device-test
-  items are all pending the user's flash authorisation. np-0.2.12 was flashed:
-  its roaming and AOD checks ran on device and its credentials-jump regression
-  is fixed in np-0.2.13, whose device re-test awaits flash authorisation.
+  items are all pending the user's flash authorisation. np-0.2.12 and np-0.2.13
+  were flashed: the roaming and AOD checks ran on device, and the
+  credentials-jump regression was fixed in np-0.2.14; np-0.2.14's device
+  re-test awaits flash authorisation.
 
 ## Repository rename (2026-11-09)
 

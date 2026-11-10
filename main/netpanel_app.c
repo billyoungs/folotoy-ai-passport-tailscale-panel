@@ -453,6 +453,23 @@ static void maybe_prompt_credentials(void)
     open_lan_prov();
 }
 
+// ST_RUN 里的周期兜底:开机/自愈/手动重试那一次尝试可能被瞬时失败错过
+// (服务启动失败、地址晚到)。没凭据、没被用户关掉、链路又在时,隔几秒重试
+// 一次,直到配对码页真正起来。成功时 s_state 变 ST_PROV,这一句在下一拍
+// 自然不再触发。
+#define CRED_PROMPT_RETRY_MS 3000
+static int64_t s_last_cred_prompt_ms;
+
+static void ensure_credentials_prompt(void)
+{
+    if (app_cfg_has_tailscale() || s_prompt_dismissed) return;
+    if (!app_wifi_has_ip()) return;
+    const int64_t now_ms = esp_timer_get_time() / 1000;
+    if (now_ms - s_last_cred_prompt_ms < CRED_PROMPT_RETRY_MS) return;
+    s_last_cred_prompt_ms = now_ms;
+    maybe_prompt_credentials();
+}
+
 // 从 BOOT 走一遍:载入配置 → 有 Wi-Fi 就连,没有就起引导热点。
 static void enter_boot(void)
 {
@@ -621,6 +638,9 @@ static void handle_key(const app_ev_t *key)
                 np_poll_init(&s_poll, app_cfg_poll_base_s(), app_cfg_poll_cap_s());
                 s_state = ST_RUN;
                 clear_status();
+                // 手动重试成功也只说明链路回来了:没有凭据仍要落到配对码页,
+                // 与开机/自愈那两条共用同一句,不能停在空列表上。
+                maybe_prompt_credentials();
             }
             render_now();
         }
@@ -1005,7 +1025,13 @@ static void app_task(void *arg)
                 app_prov_stop();
                 handle_prov_done();
             }
-            if (s_state == ST_RUN) render_now();
+            if (s_state == ST_RUN) {
+                // 开机/自愈那一次拉起失败时,这里是兜底:没凭据、链路在、没被
+                // 用户关掉,就周期重试凭据录入页,直到配对码页真正起来。成功后
+                // s_state 变 ST_PROV,下面的 render_now 自然跳过。
+                ensure_credentials_prompt();
+                if (s_state == ST_RUN) render_now();
+            }
             // 自动熄屏:只在正常运行态检查(配网页/热点页要一直亮着读信息)。
             if (s_state == ST_RUN && !s_screen_off &&
                 np_display_cfg_should_sleep(t2, s_last_activity_ms,
