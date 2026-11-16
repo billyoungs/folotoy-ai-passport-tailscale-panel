@@ -24,8 +24,10 @@ static uint32_t s_poll_base_s = 120;
 static uint32_t s_poll_cap_s = 3600;
 static int32_t s_tz_offset_s = 8 * 3600;
 // 显示设置:亮度(1..100)、熄屏间隔(分钟,0=从不)、熄屏显示开关。
+// 熄屏间隔出厂默认 2 小时(120 分钟,np-0.2.18 起);已存过 offm 的设备保留
+// 自己的设置,只有从未存过(首次开机/清过 NVS)才落到这个默认。
 static uint8_t s_brightness = 100;
-static uint8_t s_off_minutes = 10;
+static uint8_t s_off_minutes = 120;
 static bool s_aod_enabled = true;
 // 配过的 Wi-Fi 都记着;活动配对(s_ssid/s_psk)与 0 号槽在保存时对齐。
 static np_wifi_store_t s_wifi_store;

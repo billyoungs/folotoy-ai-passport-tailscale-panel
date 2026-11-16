@@ -1004,7 +1004,44 @@ content-addressed `build/firmware/<sha256>/` bundles.
   one centred line; a no-count boot shows time and date only; the np-0.2.15
   brightness restore still works).
 
-## Standing deferrals (as of np-0.2.17)
+## np-0.2.18 — feat(list): scrollbar for long host lists, weekday in the header, 2 h default sleep
+
+- The device list now shows a **vertical scrollbar on the right edge** of the
+  list area when the host count exceeds one screen (more than six rows): a
+  track plus a thumb that tracks the current scroll position, so it is obvious
+  the list can be scrolled up and down. With six rows or fewer the scrollbar
+  stays hidden. The list still scrolls via the selected row being scrolled into
+  view on UP/DOWN; the scrollbar is a visual indicator, not a new input path.
+- The header's left cell now shows the **weekday to the right of the date**
+  (`M/D` plus weekday), formatted from the same clock sample and timezone as
+  the date
+  via the new pure-logic `np_time_format_wday()` (host-tested against golden
+  vectors, including a pre-1970 negative epoch). The left cell widens and the
+  centred time cell narrows and shifts so the two do not crowd.
+- The **factory auto-sleep default is now 2 hours** (was 10 minutes): a device
+  that never saved an `offm` value falls back to 120 minutes; a device that
+  already saved its own tier keeps it. 120 is an existing tier whose label
+  already reads two hours, so the settings page needs no change.
+- Inventory regenerated to **1006** codepoints (was 1003 — the weekday
+  glyphs are new); font subsets regenerated accordingly (1101 code points
+  covered). The font toolchain was repaired: the venv's fontTools had to be
+  reinstalled cleanly — a corrupted user-site load dropped the CFF charset on
+  save, which FreeType rejected with `FT_New_Memory_Face: 3`; the generate
+  script itself is unchanged.
+- `--static` PASS (`Repository checks` 434 files / `Host tests` PASS;
+  inventory consistent at 1006). Image
+  `build/FoloToy-AI-Passport-full-np-0.2.18.bin`, 2074976 bytes (+1968 vs
+  np-0.2.17), sha256
+  `a32e50d6127819187b0733205836b71c074bf83148a1a50e512d5b80caa721b9`; app ELF
+  `581c3df9bc8c54c0c915cb51776c7b025dac57b267f017618c7465d488222180`; map
+  `.dram0.bss` `0x1b5e8` (was 0x1b5d8 — the two new scrollbar object pointers,
+  the shown-row count and related state), `work_mem_int` `0x10000` unchanged.
+  Firmware version gate: PASS (np-0.2.18). **Awaiting a device flash** (check:
+  with more than six hosts the right-edge scrollbar shows and its thumb follows
+  the selection; the header reads `M/D` plus weekday; a fresh/cleared device sleeps
+  after 2 hours by default; existing devices keep their saved sleep tier).
+
+## Standing deferrals (as of np-0.2.18)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -1023,8 +1060,9 @@ content-addressed `build/firmware/<sha256>/` bundles.
   were flashed: the roaming and AOD checks ran on device, and the
   credentials-jump regression was fixed in np-0.2.14, which was then flashed
   and confirmed to open the credentials LAN page correctly. np-0.2.15 (AOD
-  brightness handling), np-0.2.16 (the brightness adjustment bar) and
-  np-0.2.17 (AOD date line and inline mark) await a device flash.
+  brightness handling), np-0.2.16 (the brightness adjustment bar),
+  np-0.2.17 (AOD date line and inline mark) and np-0.2.18 (list scrollbar,
+  header weekday, 2 h default sleep) await a device flash.
 
 ## Repository rename (2026-11-09)
 

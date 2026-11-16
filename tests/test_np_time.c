@@ -72,6 +72,30 @@ int main(void)
     np_time_format_md(buf, 0, 1793658659, 0);
     np_time_format_hm(NULL, 32, 1793658659, 0);
 
+    // 周几:与 M/D 同一套历法口径,跨午夜/跨年与日期对齐。
+    np_time_format_wday(buf, sizeof(buf), 0, 0);
+    assert(strcmp(buf, "周四") == 0);          // 1970-01-01
+    assert(np_time_parse_rfc3339("2000-01-01T00:00:00Z", &t));
+    np_time_format_wday(buf, sizeof(buf), t, 0);
+    assert(strcmp(buf, "周六") == 0);
+    assert(np_time_parse_rfc3339("2024-01-01T00:00:00Z", &t));
+    np_time_format_wday(buf, sizeof(buf), t, 0);
+    assert(strcmp(buf, "周一") == 0);
+    // 2026-11-02 是周一;+8h 跨到 11-03 是周二,周几跟着日期一起翻。
+    np_time_format_wday(buf, sizeof(buf), 1793658659, 0);
+    assert(strcmp(buf, "周一") == 0);
+    np_time_format_wday(buf, sizeof(buf), 1793658659, 8 * 3600);
+    assert(strcmp(buf, "周二") == 0);
+    // 大负数(Go 零值)也要给出一个合法的"周X",不许算出越界或乱码。
+    np_time_format_wday(buf, sizeof(buf), -62135596800LL, 0);
+    const char *wd_names[7] = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+    int wd_ok = 0;
+    for (int i = 0; i < 7; i++) if (strcmp(buf, wd_names[i]) == 0) { wd_ok = 1; break; }
+    assert(wd_ok);
+    // 空指针/零容量不越界。
+    np_time_format_wday(NULL, 32, 0, 0);
+    np_time_format_wday(buf, 0, 0, 0);
+
     // 剩余天数:过期为负
     assert(np_time_days_until(1000 + 5 * 86400 + 1, 1000) == 5);
     assert(np_time_days_until(1000, 1000) == 0);

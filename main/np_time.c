@@ -102,6 +102,20 @@ void np_time_format_hm(char *buf, size_t cap, int64_t epoch, int32_t offset_s)
     snprintf(buf, cap, "%02u:%02u", (sod / 3600u) % 24u, (sod % 3600u) / 60u);
 }
 
+void np_time_format_wday(char *buf, size_t cap, int64_t epoch, int32_t offset_s)
+{
+    if (buf == NULL || cap == 0u) return;
+    const int64_t local = epoch + offset_s;
+    int64_t days = local / 86400;
+    if (local % 86400 < 0) days--;   // 1970 之前向下取整,与 civil_of 同一套口径
+    // 1970-01-01 是周四(4);索引 0=周日..6=周六。取模对负数也要归到 0..6。
+    const int wday = (int)(((days + 4) % 7 + 7) % 7);
+    static const char *const names[7] = {
+        "周日", "周一", "周二", "周三", "周四", "周五", "周六",
+    };
+    snprintf(buf, cap, "%s", names[wday]);
+}
+
 int np_time_days_until(int64_t epoch, int64_t now)
 {
     const int64_t delta = epoch - now;

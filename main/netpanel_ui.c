@@ -50,6 +50,8 @@ static lv_font_t s_font14, s_font20;
 static bool s_font_ready;
 
 static lv_obj_t *s_list_scr, *s_head, *s_clock, *s_area, *s_footer;
+static lv_obj_t *s_sb_track, *s_sb_thumb;   // 列表右侧垂直滚动条(轨道+滑块)
+static size_t s_list_shown;                 // 当前列表实际显示的行数
 static lv_obj_t *s_rows[NP_MAX_DEVICES];
 static lv_obj_t *s_dots[NP_MAX_DEVICES];
 static lv_obj_t *s_names[NP_MAX_DEVICES];
@@ -264,6 +266,17 @@ static void battery_update(batt_ui_t *b, int pct)
 #define ROW_NAME_X  25   // 名称左缘   → 卡片内 27 px
 #define ROW_NAME_W  176  // 到卡片内缘 214 还留 11 px,长名字收省略号
 #define ROW_NAME_H  17   // np_font_14 的行高:钉死一行,卡片不会被顶开
+#define ROW_H       32   // 行卡片高度(滚动条按它算内容高度)
+#define ROW_GAP     5    // 行间间隔(flex pad_row,滚动条同样按它算)
+#define LIST_VISIBLE_ROWS 6   // 一屏行数:222 / (32+5) 向下取整
+
+// 右侧垂直滚动条几何:贴在列表区(s_area 右侧 x=228)之外的屏幕右边距里,
+// 不压到卡片。轨道常显、滑块随滚动位置移动。
+#define SB_X            232
+#define SB_W            4
+#define SB_Y            48   // 与 s_area 顶边对齐
+#define SB_H            222  // 与 s_area 高度一致
+#define SB_MIN_TH       10   // 滑块最小高度,设备再多也不缩成看不见
 
 void np_ui_list_enter(void)
 {
@@ -272,17 +285,18 @@ void np_ui_list_enter(void)
 
     s_list_scr = mk_screen();
 
-    // 状态栏左格:日期(M/D)。没校时、没连网时同一格改说当前卡在哪一步,
+    // 状态栏左格:日期(M/D) + 周几。没校时、没连网时同一格改说当前卡在哪一步,
     // 优先讲"未连网"——断网时 SNTP 也不会有结果,那句才是用户要先处理的。
     // 中格是居中的 HH:MM:标签框按屏幕中线 120 摆,字在框内居中,所以时间是
-    // 真的对齐屏幕中线,而不是"看着差不多在中间"。
+    // 真的对齐屏幕中线,而不是"看着差不多在中间"。周几占宽后左格变宽,中格
+    // 收窄并右移,两格之间留出间隙,互不挤压。
     s_head = mk_label(s_list_scr, 12, 12, UI_MUTED, &s_font14);
     lv_label_set_text(s_head, "待校时");
-    lv_obj_set_width(s_head, 56);
+    lv_obj_set_width(s_head, 72);
     lv_label_set_long_mode(s_head, LV_LABEL_LONG_CLIP);
 
-    s_clock = mk_label(s_list_scr, 70, 12, UI_TEXT, &s_font14);
-    lv_obj_set_width(s_clock, 100);
+    s_clock = mk_label(s_list_scr, 86, 12, UI_TEXT, &s_font14);
+    lv_obj_set_width(s_clock, 68);
     lv_obj_set_style_text_align(s_clock, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(s_clock, LV_LABEL_LONG_CLIP);
     lv_label_set_text(s_clock, "--:--");
@@ -300,12 +314,12 @@ void np_ui_list_enter(void)
     // 的"主机名边框超出屏幕右边")。几何要按这里的数字算,内边距清零。
     lv_obj_set_style_pad_all(s_area, 0, 0);
     lv_obj_set_flex_flow(s_area, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(s_area, 5, 0);
+    lv_obj_set_style_pad_row(s_area, ROW_GAP, 0);
     lv_obj_set_scrollbar_mode(s_area, LV_SCROLLBAR_MODE_OFF);
 
     for (size_t i = 0; i < NP_MAX_DEVICES; i++) {
         lv_obj_t *row = lv_obj_create(s_area);
-        lv_obj_set_size(row, 216, 32);
+        lv_obj_set_size(row, 216, ROW_H);
         lv_obj_set_style_bg_color(row, lv_color_hex(UI_CARD), 0);
         lv_obj_set_style_radius(row, 10, 0);
         lv_obj_set_style_border_width(row, 2, 0);
@@ -328,6 +342,28 @@ void np_ui_list_enter(void)
         lv_label_set_long_mode(s_names[i], LV_LABEL_LONG_DOT);
         lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
     }
+
+    // 右侧垂直滚动条:轨道 + 滑块,都先藏起来,等 render 时按行数决定要不要露。
+    // 它们是屏幕的直接子对象(不挂进 s_area),才不会跟着内容一起滚走。
+    s_sb_track = lv_obj_create(s_list_scr);
+    lv_obj_remove_style_all(s_sb_track);
+    lv_obj_set_pos(s_sb_track, SB_X, SB_Y);
+    lv_obj_set_size(s_sb_track, SB_W, SB_H);
+    lv_obj_set_style_bg_color(s_sb_track, lv_color_hex(UI_BAR_OFF), 0);
+    lv_obj_set_style_bg_opa(s_sb_track, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(s_sb_track, SB_W / 2, 0);
+    lv_obj_remove_flag(s_sb_track, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_sb_track, LV_OBJ_FLAG_HIDDEN);
+
+    s_sb_thumb = lv_obj_create(s_list_scr);
+    lv_obj_remove_style_all(s_sb_thumb);
+    lv_obj_set_pos(s_sb_thumb, SB_X, SB_Y);
+    lv_obj_set_size(s_sb_thumb, SB_W, SB_MIN_TH);
+    lv_obj_set_style_bg_color(s_sb_thumb, lv_color_hex(UI_ACCENT), 0);
+    lv_obj_set_style_bg_opa(s_sb_thumb, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(s_sb_thumb, SB_W / 2, 0);
+    lv_obj_remove_flag(s_sb_thumb, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_sb_thumb, LV_OBJ_FLAG_HIDDEN);
 
     mk_divider(s_list_scr, 278);
     s_footer = mk_label(s_list_scr, 12, 284, UI_MUTED, &s_font14);
@@ -352,6 +388,8 @@ void np_ui_list_exit(void)
         s_list_scr = NULL;
     }
     s_head = s_clock = s_area = s_footer = NULL;
+    s_sb_track = s_sb_thumb = NULL;
+    s_list_shown = 0;
     s_detail_body = NULL;
     for (int i = 0; i < 3; i++) s_wifi[i] = NULL;
     s_wifi_dot = NULL;
@@ -360,6 +398,37 @@ void np_ui_list_exit(void)
     for (size_t i = 0; i < NP_MAX_DEVICES; i++) {
         s_rows[i] = s_dots[i] = s_names[i] = NULL;
     }
+}
+
+// 右侧滚动条:行数超过一屏才露;滑块高度按"一屏占内容的比例"缩,位置跟随
+// s_area 当前滚动量。列表只靠"选中项滚进视野"驱动滚动(三键没有自由滚动),
+// 所以在这里(滚动之后)算一次就够,render 后 np_ui_highlight 也会再算。
+static void list_scrollbar_update(void)
+{
+    if (!s_sb_track || !s_sb_thumb || !s_area) return;
+    const size_t shown = s_list_shown;
+    const int content_h = (int)(shown * (ROW_H + ROW_GAP) - ROW_GAP);
+    const int area_h = 222;
+    if (shown <= LIST_VISIBLE_ROWS || content_h <= area_h) {
+        lv_obj_add_flag(s_sb_track, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_sb_thumb, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_remove_flag(s_sb_track, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(s_sb_thumb, LV_OBJ_FLAG_HIDDEN);
+    int thumb_h = (int)((int64_t)SB_H * area_h / content_h);
+    if (thumb_h < SB_MIN_TH) thumb_h = SB_MIN_TH;
+    if (thumb_h > SB_H - 2) thumb_h = SB_H - 2;
+    lv_obj_set_height(s_sb_thumb, thumb_h);
+    const int range = content_h - area_h;
+    const int scroll_y = lv_obj_get_scroll_y(s_area);
+    int y = SB_Y;
+    if (range > 0 && thumb_h < SB_H) {
+        const int travel = SB_H - thumb_h;
+        y = SB_Y + (int)((int64_t)scroll_y * travel / range);
+    }
+    if (y < SB_Y) y = SB_Y;
+    lv_obj_set_pos(s_sb_thumb, SB_X, y);
 }
 
 void np_ui_highlight(void)
@@ -378,6 +447,7 @@ void np_ui_highlight(void)
         if (sel && !lv_obj_has_flag(s_rows[i], LV_OBJ_FLAG_HIDDEN))
             lv_obj_scroll_to_view(s_rows[i], LV_ANIM_OFF);
     }
+    list_scrollbar_update();
 }
 
 void np_ui_render_list(const np_list_t *data, bool time_synced, int64_t now,
@@ -389,10 +459,19 @@ void np_ui_render_list(const np_list_t *data, bool time_synced, int64_t now,
     fonts_init();
 
     char buf[16];
-    if (!rssi) snprintf(buf, sizeof(buf), "未连网");
-    else if (time_synced) np_time_format_md(buf, sizeof(buf), now, tz_offset_s);
-    else snprintf(buf, sizeof(buf), "待校时");
-    lv_label_set_text(s_head, buf);
+    char head[24];
+    if (!rssi) {
+        snprintf(head, sizeof(head), "未连网");
+    } else if (time_synced) {
+        // 日期右侧跟周几,两格同一次采样、同一时区,跨午夜一起翻。
+        np_time_format_md(buf, sizeof(buf), now, tz_offset_s);
+        char wd[8];
+        np_time_format_wday(wd, sizeof(wd), now, tz_offset_s);
+        snprintf(head, sizeof(head), "%s %s", buf, wd);
+    } else {
+        snprintf(head, sizeof(head), "待校时");
+    }
+    lv_label_set_text(s_head, head);
     if (time_synced) {
         np_time_format_hm(buf, sizeof(buf), now, tz_offset_s);
     } else {
@@ -404,6 +483,7 @@ void np_ui_render_list(const np_list_t *data, bool time_synced, int64_t now,
 
     const size_t shown = data->count < NP_MAX_DEVICES ? data->count : NP_MAX_DEVICES;
     if (s_selected >= shown && shown > 0) s_selected = shown - 1;
+    s_list_shown = shown;
     char label[NP_NAME_LEN + 4];   // 名称 + 3 字节图标前缀
     for (size_t i = 0; i < NP_MAX_DEVICES; i++) {
         if (!s_rows[i]) continue;

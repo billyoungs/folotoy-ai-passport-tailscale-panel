@@ -13,14 +13,15 @@ and no cloud relay.
 
 | View | Keys |
 | --- | --- |
-| Device list (OS glyph + online dot + name; date on the left of the header, time in the middle, Wi-Fi and battery glyphs on the right) | Up/Down select, OK opens detail; OK long-press opens system settings; with an empty list OK opens the status view |
+| Device list (OS glyph + online dot + name; date and weekday on the left of the header, time in the middle, Wi-Fi and battery glyphs on the right) | Up/Down select, OK opens detail; OK long-press opens system settings; with an empty list OK opens the status view |
 | Device detail (state line plus ten rows: address, OS, client, owner, tags, key, last online, joined, relay, routes; the rows scroll vertically when they do not fit on one screen) | Up/Down scroll and stop at the top or bottom; OK opens status; OK long-press returns to the list |
 | Tailscale monitor panel menu (head: the official mark, the product name and the version; items: sync now, LAN configuration, start the guide hotspot, clear credentials; the body carries the account and login state and the poll cadence) | Up/Down pick an item, OK runs it; OK long-press back |
 | System settings (title plus four rows: screen brightness / auto-sleep timeout / AOD toggle / network configuration, current value on the right; sub-pages are the brightness adjustment bar, the sleep-tier list, the AOD switch, and the four provisioning actions) | Up/Down select, OK enters a sub-page, toggles or runs an action; inside a sub-page Up/Down adjusts or selects and OK confirms; OK long-press returns to the list and saves |
 
 OK long-press on any sub-page returns to the list; on the list itself that same
 press opens system settings. The left cell of
-the header is the date, written `M/D` with no zero padding; while the clock is
+the header is the date, written `M/D` with no zero padding, with the weekday
+shown to its right (`np-0.2.18`); while the clock is
 not synced the same cell says *waiting for time sync* instead, and while Wi-Fi
 is down it says *no network* — with no link SNTP would have no result either,
 and the screen has to lead with the thing the user can act on, so *no network*
@@ -119,7 +120,11 @@ constants in `netpanel_ui.c`. The name is pinned to one line of height with an
 ellipsis closing any overflow (`ROW_NAME_W`): the card height is fixed and the
 text must not push it open. Only six rows fit on the screen, so the selected
 row is scrolled into view once the cursor moves past them — otherwise it would
-jump on a row nobody can see. The detail view's scrolling and wrapping are
+jump on a row nobody can see. When the host count exceeds one screen (more than
+six rows) a vertical scrollbar appears on the right edge of the list area, with
+a thumb that tracks the current scroll position, so it is obvious the list can
+be scrolled up and down (`np-0.2.18`); with six rows or fewer it stays hidden.
+The detail view's scrolling and wrapping are
 covered in *Per-machine extra fields*.
 
 The footer has two channels and they must not be confused. A real fault prints
@@ -927,7 +932,10 @@ to the list and persists in one go.
   touched and NVS (`bri`, 1..100) is written when leaving settings, avoiding
   frequent flash wear.
 - **Auto-sleep timeout:** tiers = never / 1 / 5 / 10 / 30 minutes / 1 / 2 hours
-  (`offm`, minutes, 0 = never). When the timeout fires with AOD off,
+  (`offm`, minutes, 0 = never). The factory default is **2 hours**
+  (`np-0.2.18`): a device that never saved an `offm` value (first boot or a
+  cleared NVS) falls back to it, while a device that already saved its own
+  tier keeps that setting. When the timeout fires with AOD off,
   `bsp_display_backlight(0)` blanks the screen; with AOD on it switches to the
   AOD page at 20% brightness. The pre-AOD brightness is remembered first
   (`s_brightness_saved`) and restored on wake, so the 20% AOD level never leaks

@@ -21,5 +21,9 @@ void np_time_format_md(char *buf, size_t cap, int64_t epoch, int32_t offset_s);
 // epoch → "HH:MM"(24 小时,补零;状态栏居中那一格)。
 void np_time_format_hm(char *buf, size_t cap, int64_t epoch, int32_t offset_s);
 
+// epoch → "周X"(周日..周六;状态栏日期右侧那一格)。与 np_time_format_md 用同一套
+// 历法换算(先加偏移再算天数),跨午夜/跨年与 md 对齐。
+void np_time_format_wday(char *buf, size_t cap, int64_t epoch, int32_t offset_s);
+
 // epoch → 距今剩余天数(向下取整;已过期返回负数)。
 int np_time_days_until(int64_t epoch, int64_t now);
