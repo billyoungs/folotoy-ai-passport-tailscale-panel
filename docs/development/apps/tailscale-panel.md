@@ -923,7 +923,11 @@ Since `np-0.2.8` a long-press of OK on the list page opens system settings (the
 old long-press-to-status binding gives way to settings; the status page stays
 reachable via OK on the detail page). The settings home has four rows with the
 current value on the right; OK enters a sub-page, and a long-press of OK returns
-to the list and persists in one go.
+to the list and persists in one go. Below the four rows, the settings home shows
+the firmware name and version — the same product name as the status page plus
+`v0.3.0`, read from the embedded app descriptor with the `np-` build tag
+stripped — so the running build is identifiable without a serial console
+(`np-0.3.0`).
 
 - **Screen brightness:** the sub-page shows the level as a live adjustment bar
   (a rounded track with a filled portion that grows left-to-right with the
@@ -944,14 +948,15 @@ to the list and persists in one go.
   horizontally (the labels auto-size rather than sitting left-aligned inside a
   fixed 240 px box): the current time `HH:MM` in a large font (Montserrat 48)
   on top, the date `M/D` below it (Montserrat 20, since `np-0.2.17`), and
-  under that the device count `x/y` (x = online, y = total) in Montserrat 28
+  under that the device count `x|y` (x = online, y = total; the separator is
+  `|`, since `np-0.3.0`) in Montserrat 28
   — two tiers larger since `np-0.2.10` — on one line with the Tailscale
   nine-dot mark sitting just left of the number (`np-0.2.17`), the pair
   centred as a group; the battery icon top right keeps the list header's
   geometry and level rule. The mark, the battery icon, and the mark hiding
-  with `x/y` before the host list arrives are from `np-0.2.12` / `np-0.2.11`
+  with `x|y` before the host list arrives are from `np-0.2.12` / `np-0.2.11`
   respectively. The page refreshes every second. Until the first successful
-  read of the Tailscale host list, the mark and `x/y` count are hidden and
+  read of the Tailscale host list, the mark and `x|y` count are hidden and
   only the time and date are shown centred (since `np-0.2.11`), so an
   inaccurate online count is never shown before the data actually arrives.
   When off, sleep simply blanks the screen.

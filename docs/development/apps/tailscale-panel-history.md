@@ -1041,7 +1041,34 @@ content-addressed `build/firmware/<sha256>/` bundles.
   the selection; the header reads `M/D` plus weekday; a fresh/cleared device sleeps
   after 2 hours by default; existing devices keep their saved sleep tier).
 
-## Standing deferrals (as of np-0.2.18)
+## np-0.3.0 — feat(settings): firmware name + version on the settings home; AOD count as x|y
+
+- The settings home (main menu) now shows the **firmware name and version** on a
+  line below the four rows: the same product name as the status page plus
+  `v0.3.0`, read from the embedded app descriptor with the `np-` build tag
+  stripped, so the running build is identifiable without a serial console.
+- The AOD device count now uses **`x|y`** instead of `x/y`: the `/` separator
+  became `|` (an ASCII pipe, already covered by the fonts) while the Tailscale
+  nine-dot mark stays on the same line just left of the count (`np-0.2.17`).
+- **Version scheme change:** firmware versions are `0.X.Y`, where Y (the third
+  digit) rolls over at 5 — once Y reaches 5 the next version increments X and
+  resets Y to 0, e.g. `0.5.5` → `0.6.0`. This bump moves the project from
+  `np-0.2.18` to `np-0.3.0` to normalise the counter under the new scheme.
+- No new glyphs were needed (`|` is ASCII and the product-name characters were
+  already in the subset), so the inventory stays at **1006** codepoints and the
+  font subsets are unchanged.
+- `--static` PASS (`Repository checks` 434 files / `Host tests` PASS;
+  inventory consistent at 1006). Image
+  `build/FoloToy-AI-Passport-full-np-0.3.0.bin`, 2075152 bytes (+176 vs
+  np-0.2.18), sha256
+  `19627070bc256206a33d637a184840a62174fdf4d088a5fc6060ff632755a6f7`; app ELF
+  `962e344ead97624842dfac665bdec9480230113565825b4ecb4571a95fb4d6f1`; map
+  `.dram0.bss` `0x1b5e8` unchanged, `work_mem_int` `0x10000` unchanged.
+  Firmware version gate: PASS (np-0.3.0). **Awaiting a device flash** (check:
+  the settings home shows `Tailscale monitor panel v0.3.0`; the AOD count reads
+  `x|y` with the mark just left of it on the same centred line).
+
+## Standing deferrals (as of np-0.3.0)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -1061,8 +1088,9 @@ content-addressed `build/firmware/<sha256>/` bundles.
   credentials-jump regression was fixed in np-0.2.14, which was then flashed
   and confirmed to open the credentials LAN page correctly. np-0.2.15 (AOD
   brightness handling), np-0.2.16 (the brightness adjustment bar),
-  np-0.2.17 (AOD date line and inline mark) and np-0.2.18 (list scrollbar,
-  header weekday, 2 h default sleep) await a device flash.
+  np-0.2.17 (AOD date line and inline mark), np-0.2.18 (list scrollbar,
+  header weekday, 2 h default sleep) and np-0.3.0 (settings firmware line,
+  AOD `x|y`) await a device flash.
 
 ## Repository rename (2026-11-09)
 

@@ -785,7 +785,7 @@ void np_ui_status_hint(const char *text)
 // ------------------------------------------------------------- 状态页标题
 // Tailscale 官方 mark 就是 9 枚圆点(几何照 assets/icons/tailscale-favicon.svg 描,
 // 表在 np_logo.c)。这个尺寸下点阵图标会糊成一团,所以走 s_wifi_dot 那套 lv_obj 圆盘。
-// 两处共用同一份绘制:状态页标题旁(大)与 AOD 页 x/y 上方(小),颜色/衰减只此
+// 两处共用同一份绘制:状态页标题旁(大)与 AOD 页 x|y 上方(小),颜色/衰减只此
 // 一份,改一处两屏都跟着走。dots_out 非空时逐枚回填指针(AOD 页要按 has_count
 // 整组显隐,不能整个删)。
 #define LOGO_X 12
@@ -1049,6 +1049,19 @@ static void paint_settings(void)
         lv_label_set_text(vl, values[i]);
         lv_obj_align(vl, LV_ALIGN_RIGHT_MID, -12, 0);
     }
+
+    // 底部一行:固件名 + 版本号。与状态页同一来源(esp_app_get_description),
+    // 摘掉 "np-" 构建标识,显示 vX.Y.Z。
+    char fw[48];
+    const char *vraw = esp_app_get_description()->version;
+    if (strncmp(vraw, "np-", 3) == 0) vraw += 3;
+    snprintf(fw, sizeof(fw), "Tailscale 监控牌 v%.24s", vraw);
+    lv_obj_t *fwlb = mk_label(s_settings_scr, 14, 250, UI_MUTED, &s_font14);
+    lv_obj_set_width(fwlb, 212);
+    lv_obj_set_style_text_align(fwlb, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(fwlb, LV_LABEL_LONG_DOT);
+    lv_label_set_text(fwlb, fw);
+
     settings_hint(NULL);
 }
 
@@ -1076,16 +1089,16 @@ void np_ui_settings_save_and_back(void)
     }
 }
 
-// Tailscale 标志排在 x/y 数字左边同一行,整组水平居中;组内间隔沿用标题旁
+// Tailscale 标志排在 x|y 数字左边同一行,整组水平居中;组内间隔沿用标题旁
 // 那套 6 px。行中心、日期行、时间行的纵向偏移也在这里一次说清。
 #define AOD_MARK_R     2
 #define AOD_MARK_GAP   6
 #define AOD_TIME_DY    (-52)   // 有时间+日期+设备数时,时间行的纵向偏移
 #define AOD_DATE_DY    0       // 日期行紧贴屏幕中线
-#define AOD_COUNT_DY   48      // 标志+x/y 那一行
+#define AOD_COUNT_DY   48      // 标志+x|y 那一行
 #define AOD_DY         28      // 只有时间+日期时,两行各向中线外挪这么多
 
-// 把九点标志整组挪到新的绘制盒原点(行内摆放要先量 x/y 宽度,再回推位置)。
+// 把九点标志整组挪到新的绘制盒原点(行内摆放要先量 x|y 宽度,再回推位置)。
 static void aod_mark_place(int box_x, int box_y)
 {
     for (int i = 0; i < NP_LOGO_DOTS; i++) {
@@ -1109,14 +1122,14 @@ static void aod_build(void)
     s_aod_date = mk_label(s_aod_scr, 0, 0, UI_MUTED, &lv_font_montserrat_20);
     lv_label_set_text(s_aod_date, "--");
     lv_obj_align(s_aod_date, LV_ALIGN_CENTER, 0, 0);
-    // Device count x/y: x = online count, y = total; bumped up by two more degrees from np-0.2.9 (Montserrat 28).
+    // Device count x|y: x = online count, y = total; bumped up by two more degrees from np-0.2.9 (Montserrat 28).
     s_aod_online = mk_label(s_aod_scr, 0, 0, UI_MUTED, &lv_font_montserrat_28);
-    lv_label_set_text(s_aod_online, "0/0");
+    lv_label_set_text(s_aod_online, "0|0");
     lv_obj_align(s_aod_online, LV_ALIGN_CENTER, 0, 48);
     // Battery icon: top-right uses the same geometry as the list header (that copy is the only one that won't be
     // stolen when the off-screen display screen and the list page exist simultaneously). Nine-dot Tailscale mark:
-    // 与 x/y 同一行、排在数字左边;建屏时先放个占位坐标,绘制时按量出的
-    // x/y 宽度整组回中。构建即隐藏,设备计数就绪才显示。
+    // 与 x|y 同一行、排在数字左边;建屏时先放个占位坐标,绘制时按量出的
+    // x|y 宽度整组回中。构建即隐藏,设备计数就绪才显示。
     battery_create(s_aod_scr, &s_aod_batt);
     logo_dots(s_aod_scr, 120 - NP_LOGO_BOX / 2, 160 + AOD_COUNT_DY - NP_LOGO_BOX / 2,
               AOD_MARK_R, UI_MUTED, s_aod_mark);
@@ -1124,9 +1137,9 @@ static void aod_build(void)
         lv_obj_add_flag(s_aod_mark[i], LV_OBJ_FLAG_HIDDEN);
 }
 
-// 日期行、x/y 行与电池的绘制:has_count 为 false(主机列表还没成功出现过)
+// 日期行、x|y 行与电池的绘制:has_count 为 false(主机列表还没成功出现过)
 // 时隐藏设备计数与标志,只居中排时间与日期两行;为 true 时按时间/日期/
-// 标志+x/y 三行纵向排布,标志排在数字左边同一行、整组水平居中。
+// 标志+x|y 三行纵向排布,标志排在数字左边同一行、整组水平居中。
 // 调用方须持有 LVGL 锁。
 static void aod_paint(int battery_pct, bool has_count, uint32_t online,
                       uint32_t total)
@@ -1136,9 +1149,9 @@ static void aod_paint(int battery_pct, bool has_count, uint32_t online,
     if (has_count) {
         lv_obj_remove_flag(s_aod_online, LV_OBJ_FLAG_HIDDEN);
         char buf[16];
-        snprintf(buf, sizeof(buf), "%u/%u", (unsigned)online, (unsigned)total);
+        snprintf(buf, sizeof(buf), "%u|%u", (unsigned)online, (unsigned)total);
         lv_label_set_text(s_aod_online, buf);
-        // 先摆好再立刻排一遍,才能量到 x/y 的实际宽度;标志按总宽回推到左边。
+        // 先摆好再立刻排一遍,才能量到 x|y 的实际宽度;标志按总宽回推到左边。
         lv_obj_align(s_aod_online, LV_ALIGN_CENTER, 0, AOD_COUNT_DY);
         lv_obj_update_layout(s_aod_scr);
         const int w = lv_obj_get_width(s_aod_online);
