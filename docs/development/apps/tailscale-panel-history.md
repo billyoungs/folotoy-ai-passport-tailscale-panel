@@ -1068,7 +1068,26 @@ content-addressed `build/firmware/<sha256>/` bundles.
   the settings home shows `Tailscale monitor panel v0.3.0`; the AOD count reads
   `x|y` with the mark just left of it on the same centred line).
 
-## Standing deferrals (as of np-0.3.0)
+## np-0.3.1 — feat(settings): network-status subpage with live ping
+
+- Added a fifth row "Network status" to the network-config submenu. The page
+  shows connection state, Wi-Fi SSID, IPv4 address, subnet mask as `/prefix`,
+  gateway, DNS, and a real ICMP echo to `www.baidu.com` (lwIP raw PCB worker
+  task; GUI polls via a 300 ms lv_timer). OK re-pings; OK long-press returns
+  to the network-config submenu rather than the settings home.
+- New pure-logic module `np_net` (netmask-to-prefix conversion, host-tested)
+  and `np_ping` (async ICMP worker). `app_wifi` gained `net_info` / `dns_str`
+  getters. Font inventory 1006 → 1011 codepoints.
+- `--static` PASS (Host tests PASS; inventory 1011 consistent). Image
+  `build/FoloToy-AI-Passport-full-np-0.3.1.bin`, 2079792 bytes, sha256
+  `5ff81d6db797c280d5b7fca06a6bdd1721ec28bd6889107024df48ba4346cb40`;
+  app ELF `80682d4202e671a8c5cb343d8b523933e63b8a9ae9da5b58bcbfacf5700073b1`;
+  map `.dram0.bss` `0x1b5c8`, `work_mem_int` `0x10000` unchanged.
+  Firmware version gate: PASS (np-0.3.1). **Awaiting a device flash** (check:
+  settings → network config → fifth row "Network status" opens the info page;
+  ping result appears within ~2 s; OK re-pings; long-press returns to submenu).
+
+## Standing deferrals (as of np-0.3.1)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -1089,8 +1108,9 @@ content-addressed `build/firmware/<sha256>/` bundles.
   and confirmed to open the credentials LAN page correctly. np-0.2.15 (AOD
   brightness handling), np-0.2.16 (the brightness adjustment bar),
   np-0.2.17 (AOD date line and inline mark), np-0.2.18 (list scrollbar,
-  header weekday, 2 h default sleep) and np-0.3.0 (settings firmware line,
-  AOD `x|y`) await a device flash.
+  header weekday, 2 h default sleep), np-0.3.0 (settings firmware line,
+  AOD `x|y`) and np-0.3.1 (network-status subpage with live ping) await a
+  device flash.
 
 ## Repository rename (2026-11-09)
 

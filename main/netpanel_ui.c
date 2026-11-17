@@ -14,6 +14,8 @@
 #include "np_menu.h"
 #include "np_text.h"
 #include "np_time.h"
+#include "app_wifi.h"
+#include "np_ping.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -78,6 +80,8 @@ static lv_obj_t *s_brightness_track; // 亮度调节条轨道
 static lv_obj_t *s_brightness_fill;  // 亮度调节条填充(宽度随亮度,实时预览)
 static size_t s_interval_sel;
 static size_t s_net_sel;             // 网络配置子菜单选中下标(复用 np_menu 契约)
+static lv_obj_t *s_netstat_ping;     // "网络状态"页里 ping 结果那一行的值标签
+static lv_timer_t *s_netstat_timer;  // 轮询 ping 结果的小定时器(GUI 线程内跑)
 static lv_obj_t *s_aod_scr, *s_aod_time, *s_aod_online, *s_aod_date;
 static lv_obj_t *s_aod_mark[NP_LOGO_DOTS];
 
@@ -887,10 +891,13 @@ typedef enum {
     SET_INTERVAL,
     SET_AOD,
     SET_NETWORK,
+    SET_NETSTAT,     // 网络状态:一张只读的信息 + ping 结果页
 } settings_mode_t;
 static settings_mode_t s_settings_mode;
 
 #define SET_ROW_COUNT 4
+// 网络配置子菜单:原有四项操作 + 末位新增"网络状态"。
+#define NET_MENU_COUNT (NP_MENU_COUNT + 1u)
 
 static const char *SET_ROW_NAMES[SET_ROW_COUNT] = {
     "屏幕亮度", "自动熄屏", "熄屏显示", "网络配置",
@@ -923,10 +930,65 @@ static void brightness_bar_update(uint8_t pct)
     lv_obj_set_width(s_brightness_fill, fill_w);
 }
 
+// ---------------------------------------------------------- 网络状态子页辅助
+// 一行 key(左)+ value(右);value 起于固定 x,超长用省略号。返回 value 标签,
+// 好让 ping 那一行后续按定时器结果改写。
+static lv_obj_t *netstat_kv(const char *k, const char *v, int y)
+{
+    lv_obj_t *kl = mk_label(s_settings_scr, 14, y, UI_MUTED, &s_font14);
+    lv_label_set_text(kl, k);
+    lv_obj_t *vl = mk_label(s_settings_scr, 92, y, UI_TEXT, &s_font14);
+    lv_obj_set_width(vl, 136);   // 92..228,守住右边界
+    lv_label_set_long_mode(vl, LV_LABEL_LONG_DOT);
+    lv_label_set_text(vl, v);
+    return vl;
+}
+
+// 撤掉 ping 轮询定时器并把值标签指针交回 NULL(重绘/离页前必须先调,
+// 否则定时器会去摸已被 lv_obj_clean 释放的标签)。
+static void netstat_timer_stop(void)
+{
+    if (s_netstat_timer) {
+        lv_timer_delete(s_netstat_timer);
+        s_netstat_timer = NULL;
+    }
+    s_netstat_ping = NULL;
+}
+
+// 把当前 ping 状态落到 ping 值标签:检测中保持中性色,出结果才上绿/红。
+static void netstat_ping_render(void)
+{
+    if (!s_netstat_ping) return;
+    const char *txt;
+    uint32_t col;
+    switch (np_ping_state()) {
+    case NP_PING_BUSY:   txt = "检测中...";        col = UI_MUTED;  break;
+    case NP_PING_OK:     txt = "成功";             col = UI_ONLINE; break;
+    case NP_PING_NOHOST: txt = "失败(域名解析失败)"; col = UI_ERROR;  break;
+    case NP_PING_FAIL:   txt = "失败";             col = UI_ERROR;  break;
+    default:             txt = "-";               col = UI_MUTED;  break;
+    }
+    lv_label_set_text(s_netstat_ping, txt);
+    lv_obj_set_style_text_color(s_netstat_ping, lv_color_hex(col), 0);
+}
+
+// GUI 线程定时器:每 300 ms 看一眼 ping 结果,结束即落文本并自撤。
+static void netstat_timer_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (!s_netstat_ping) {   // 页面已销毁:定时器自己收
+        netstat_timer_stop();
+        return;
+    }
+    netstat_ping_render();
+    if (np_ping_state() != NP_PING_BUSY) netstat_timer_stop();
+}
+
 // 整屏重绘(除亮度子模式只更新数值与调节条外)。调用方须持有 LVGL 锁。
 static void paint_settings(void)
 {
     if (!s_settings_scr) return;
+    netstat_timer_stop();   // 重绘/离页前先撤 ping 轮询,别让它摸到即将被清掉的标签
     lv_obj_clean(s_settings_scr);
 
     if (s_settings_mode == SET_BRIGHTNESS) {
@@ -1004,7 +1066,7 @@ static void paint_settings(void)
         // 文案与状态页菜单保持同一份契约(np_menu_activate 按下标分发)。
         static const char *ACTS[NP_MENU_COUNT] = {
             "立即刷新", "局域网配置", "引导热点配网", "清除凭据" };
-        for (size_t i = 0; i < NP_MENU_COUNT; i++) {
+        for (size_t i = 0; i < NET_MENU_COUNT; i++) {
             lv_obj_t *row = lv_obj_create(s_settings_scr);
             lv_obj_set_pos(row, 12, 60 + (int)i * 40);
             lv_obj_set_size(row, 216, 32);
@@ -1017,10 +1079,38 @@ static void paint_settings(void)
             lv_obj_t *lb = lv_label_create(row);
             lv_obj_set_style_text_font(lb, &s_font14, 0);
             lv_obj_set_style_text_color(lb, lv_color_hex(sel ? UI_TEXT : UI_MUTED), 0);
-            lv_label_set_text(lb, ACTS[i]);
+            lv_label_set_text(lb, (i < NP_MENU_COUNT) ? ACTS[i] : "网络状态");
             lv_obj_center(lb);
         }
         settings_hint("上下选择 确定执行 长按返回");
+        return;
+    }
+
+    if (s_settings_mode == SET_NETSTAT) {
+        lv_obj_t *title = mk_label(s_settings_scr, 14, 8, UI_TEXT, &s_font20);
+        lv_label_set_text(title, "网络状态");
+
+        app_wifi_net_t net;
+        app_wifi_net_info(&net);
+        char dns[20];
+        app_wifi_dns_str(dns, sizeof(dns));
+        const char *ssid = app_cfg_ssid();
+        bool up = app_wifi_is_up();
+
+        int y = 50;
+        const int step = 30;
+        netstat_kv("连接状态", net.has_ip ? "已连接" : (up ? "已关联,无地址" : "未连接"), y); y += step;
+        netstat_kv("WiFi 名称", (ssid && ssid[0]) ? ssid : "-", y); y += step;
+        netstat_kv("IP 地址", net.has_ip ? net.ip : "-", y); y += step;
+        netstat_kv("子网掩码", net.has_ip ? net.prefix : "-", y); y += step;
+        netstat_kv("网关地址", (net.has_ip && net.gw[0]) ? net.gw : "-", y); y += step;
+        netstat_kv("DNS 地址", dns[0] ? dns : "-", y); y += step;
+        s_netstat_ping = netstat_kv("Ping 百度", "-", y);
+
+        if (np_ping_state() != NP_PING_BUSY) (void)np_ping_start("www.baidu.com");
+        netstat_ping_render();
+        s_netstat_timer = lv_timer_create(netstat_timer_cb, 300, NULL);
+        settings_hint("OK 重检 长按返回");
         return;
     }
 
@@ -1082,6 +1172,7 @@ void np_ui_settings_enter(void)
 // 亮度调节只改内存,离开设置统一落盘,避免 NVS 频繁擦写。
 void np_ui_settings_save_and_back(void)
 {
+    netstat_timer_stop();
     (void)app_cfg_save();
     if (s_view == NP_VIEW_SETTINGS) {
         lv_screen_load(s_list_scr);
@@ -1218,6 +1309,11 @@ np_key_result_t np_ui_handle_key(bsp_btn_t btn, bsp_btn_ev_t ev)
                 np_ui_settings_save_and_back();
                 return NP_KEY_BACK_LIST;
             }
+            if (s_settings_mode == SET_NETSTAT) {
+                s_settings_mode = SET_NETWORK;
+                paint_settings();
+                return NP_KEY_NONE;
+            }
             s_settings_mode = SET_MAIN;   // 子模式长按:不落盘,回主菜单
             paint_settings();
             return NP_KEY_NONE;
@@ -1316,17 +1412,24 @@ np_key_result_t np_ui_handle_key(bsp_btn_t btn, bsp_btn_ev_t ev)
             if (btn == BSP_BTN_UP && s_net_sel > 0) {
                 s_net_sel--;
                 paint_settings();
-            } else if (btn == BSP_BTN_DOWN && s_net_sel + 1u < NP_MENU_COUNT) {
+            } else if (btn == BSP_BTN_DOWN && s_net_sel + 1u < NET_MENU_COUNT) {
                 s_net_sel++;
                 paint_settings();
             } else if (btn == BSP_BTN_OK) {
-                switch (np_menu_activate(s_net_sel)) {
-                case NP_MENU_SYNC: return NP_KEY_ACTION_SYNC;
-                case NP_MENU_LAN:  return NP_KEY_ACTION_PROV;
-                case NP_MENU_AP:   return NP_KEY_ACTION_AP;
-                default:           return NP_KEY_ACTION_CLEAR;
+                if (s_net_sel == NP_MENU_COUNT) {
+                    s_settings_mode = SET_NETSTAT;
+                    paint_settings();
+                } else {
+                    switch (np_menu_activate(s_net_sel)) {
+                    case NP_MENU_SYNC: return NP_KEY_ACTION_SYNC;
+                    case NP_MENU_LAN:  return NP_KEY_ACTION_PROV;
+                    case NP_MENU_AP:   return NP_KEY_ACTION_AP;
+                    default:           return NP_KEY_ACTION_CLEAR;
+                    }
                 }
             }
+        } else if (s_settings_mode == SET_NETSTAT) {
+            if (btn == BSP_BTN_OK) paint_settings();
         } else {   // SET_AOD
             if (btn == BSP_BTN_OK) {
                 (void)app_cfg_set_aod_enabled(!app_cfg_aod_enabled());

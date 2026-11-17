@@ -17,6 +17,7 @@
 #include "lwip/ip4_addr.h"
 
 #include "np_link.h"
+#include "np_net.h"
 #include "np_scanlist.h"
 
 #include <stdio.h>
@@ -530,6 +531,35 @@ const char *app_wifi_ip_str(char *out, size_t cap)
     // 没有地址就交空串:屏幕上"0.0.0.0"看着像成功,实际谁都打不开。
     if (ip.addr == 0u) return out;
     snprintf(out, cap, IPSTR, IP2STR(&ip));
+    return out;
+}
+
+void app_wifi_net_info(app_wifi_net_t *out)
+{
+    if (out == NULL) return;
+    memset(out, 0, sizeof(*out));
+    esp_netif_ip_info_t info = { 0 };
+    if (!s_netif || esp_netif_get_ip_info(s_netif, &info) != ESP_OK) return;
+    if (info.ip.addr == 0u) return;   // 没地址:保持 has_ip=false、空串
+    out->has_ip = true;
+    snprintf(out->ip, sizeof(out->ip), IPSTR, IP2STR(&info.ip));
+    snprintf(out->gw, sizeof(out->gw), IPSTR, IP2STR(&info.gw));
+    // 掩码按主机序交给纯逻辑数连续高位 1(bits 31.. 是网络最高位)。
+    np_net_format_prefix(ip4_addr_get_u32(&info.netmask), out->prefix,
+                         sizeof(out->prefix));
+}
+
+const char *app_wifi_dns_str(char *out, size_t cap)
+{
+    if (out == NULL || cap == 0u) return "";
+    out[0] = '\0';
+    if (!s_netif) return out;
+    esp_netif_dns_info_t dns = { 0 };
+    if (esp_netif_get_dns_info(s_netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK) {
+        char buf[16];
+        if (esp_ip4addr_ntoa(&dns.ip.u_addr.ip4, buf, sizeof(buf)) != NULL)
+            snprintf(out, cap, "%s", buf);
+    }
     return out;
 }
 

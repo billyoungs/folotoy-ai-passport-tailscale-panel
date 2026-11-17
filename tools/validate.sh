@@ -131,6 +131,10 @@ run_static_checks() {
         tests/test_np_mem.c main/np_mem.c \
         -o "${test_dir}/test_np_mem"
     "${test_dir}/test_np_mem"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_np_net.c main/np_net.c \
+        -o "${test_dir}/test_np_net"
+    "${test_dir}/test_np_net"
     PYTHONDONTWRITEBYTECODE=1 python3 assets/fonts/extract_chars.py --check \
         main/np_text.c main/np_time.c main/np_model.c main/np_link.c main/np_form.c \
         main/np_clock.c main/np_clock.h \
@@ -144,6 +148,8 @@ run_static_checks() {
         main/np_mem.c main/np_mem.h \
         main/np_errfmt.c main/np_errfmt.h \
         main/np_account.c main/np_account.h \
+        main/np_net.c main/np_net.h \
+        main/np_ping.c main/np_ping.h \
         main/np_display_cfg.c main/np_display_cfg.h \
         main/np_icons.c main/np_icons.h \
         main/app_cfg.c main/app_wifi.c main/app_prov.c main/ts_api.c \
@@ -158,7 +164,8 @@ run_static_checks() {
         tests/test_np_menu.c tests/test_np_logo.c tests/test_np_mem.c \
         tests/test_np_display_cfg.c \
         tests/test_np_link.c tests/test_np_clock.c tests/test_np_jstream.c \
-        tests/test_np_errfmt.c tests/test_np_account.c
+        tests/test_np_errfmt.c tests/test_np_account.c \
+        tests/test_np_net.c
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_battery_profile.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_key_wake_contract.py

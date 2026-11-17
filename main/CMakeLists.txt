@@ -25,6 +25,8 @@ idf_component_register(
          "np_inventory.c"
          "np_dns_server.c"
          "np_mem.c"
+         "np_net.c"
+         "np_ping.c"
          "app_cfg.c"
          "app_wifi.c"
          "app_prov.c"
@@ -37,5 +39,5 @@ idf_component_register(
          ${DEMO_SRCS}
     INCLUDE_DIRS "."
     REQUIRES bsp bt esp_event esp_hw_support esp_netif esp_timer esp_wifi
-             esp_http_server esp_https_ota heap json mdns nvs_flash lvgl
+             esp_http_server esp_https_ota heap json lwip mdns nvs_flash lvgl
 )

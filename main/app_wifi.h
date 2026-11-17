@@ -54,6 +54,18 @@ uint32_t app_wifi_retry_countdown_ms(void);
 // IPv4 点分十进制;尚未取得地址时返回空串(调用方据此不显示地址行)。
 const char *app_wifi_ip_str(char *out, size_t cap);
 
+// 网络信息快照:IP / 掩码前缀 / 网关(STA netif)。无地址时 has_ip=false、各串为空。
+typedef struct {
+    bool has_ip;
+    char ip[16];       // 点分十进制 IPv4
+    char gw[16];       // 点分十进制网关
+    char prefix[8];    // "/24" 形式(子网掩码),无效时 "/"
+} app_wifi_net_t;
+void app_wifi_net_info(app_wifi_net_t *out);
+
+// 主 DNS 服务器点分十进制;未配置或未取到返回空串。
+const char *app_wifi_dns_str(char *out, size_t cap);
+
 // 前台阻塞扫描附近热点(13 信道,约 1-2 秒),去重排序后写入 out,*count 为条数。
 // 驱动只在含 STA 的模式下允许扫描:引导热点必须以 APSTA 起射频,纯 AP 会返回
 // ESP_ERR_WIFI_MODE。exclude_ssid 用于滤掉设备自己的热点名,可为 NULL。

@@ -16,7 +16,7 @@ and no cloud relay.
 | Device list (OS glyph + online dot + name; date and weekday on the left of the header, time in the middle, Wi-Fi and battery glyphs on the right) | Up/Down select, OK opens detail; OK long-press opens system settings; with an empty list OK opens the status view |
 | Device detail (state line plus ten rows: address, OS, client, owner, tags, key, last online, joined, relay, routes; the rows scroll vertically when they do not fit on one screen) | Up/Down scroll and stop at the top or bottom; OK opens status; OK long-press returns to the list |
 | Tailscale monitor panel menu (head: the official mark, the product name and the version; items: sync now, LAN configuration, start the guide hotspot, clear credentials; the body carries the account and login state and the poll cadence) | Up/Down pick an item, OK runs it; OK long-press back |
-| System settings (title plus four rows: screen brightness / auto-sleep timeout / AOD toggle / network configuration, current value on the right; sub-pages are the brightness adjustment bar, the sleep-tier list, the AOD switch, and the four provisioning actions) | Up/Down select, OK enters a sub-page, toggles or runs an action; inside a sub-page Up/Down adjusts or selects and OK confirms; OK long-press returns to the list and saves |
+| System settings (title plus four rows: screen brightness / auto-sleep timeout / AOD toggle / network configuration, current value on the right; sub-pages are the brightness adjustment bar, the sleep-tier list, the AOD switch, the four provisioning actions plus a network-status readout) | Up/Down select, OK enters a sub-page, toggles or runs an action; inside a sub-page Up/Down adjusts or selects and OK confirms; OK long-press returns to the list and saves |
 
 OK long-press on any sub-page returns to the list; on the list itself that same
 press opens system settings. The left cell of
@@ -964,7 +964,11 @@ stripped — so the running build is identifiable without a serial console
   folded into settings — the sub-page lists sync now / LAN configuration /
   start the guide hotspot / clear credentials, behaving exactly like the status
   menu (clearing still asks for a second press). The status page, reached via OK
-  on a detail page, keeps its menu as well.
+  on a detail page, keeps its menu as well. Since `np-0.3.1` a fifth row,
+  *Network status*, opens a read-only page showing: connection state, Wi-Fi
+  SSID, IPv4 address, subnet mask as a `/prefix`, gateway, DNS server, and a
+  live ICMP ping to `www.baidu.com` (success / failure / resolving). OK
+  re-runs the ping; OK long-press returns to the network-config submenu.
 - The sleep check runs only in the normal RUN state, driven by the 1-second
   tick of `app_task`; provisioning and hotspot pages never sleep. Any key wakes:
   the backlight is restored to the remembered pre-AOD brightness, blank mode
