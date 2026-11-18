@@ -1,45 +1,27 @@
-// main/np_ping.c —— ICMP echo(用 lwIP raw PCB)一个域名,只报通/不通。
-// 任务里跑;LWIP_ICMP 默认启用,lwIP 的 core locking 保证从任务调 raw_* 安全。
+// main/np_ping.c —— 互联网连通性探测:TCP 连接 www.baidu.com:80,只报通/不通。
+// 不走 raw ICMP:运营商和上游防火墙常丢弃 ICMP,而 TCP 握手成功才是"能上网"
+// 的真实判据;sockets 也是应用 HTTP 栈在用的同一套 lwIP 机制。
+// 任务里跑,结果用 volatile 状态交给 GUI 轮询。
 #include "np_ping.h"
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "lwip/raw.h"
-#include "lwip/pbuf.h"
-#include "lwip/ip_addr.h"
-#include "lwip/inet_chksum.h"
-#include "lwip/prot/icmp.h"
-#include "lwip/prot/ip.h"
-#include "lwip/def.h"
-#include "lwip/err.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <string.h>
 
 static const char *TAG = "np_ping";
 
 static volatile np_ping_state_t s_state = NP_PING_IDLE;
-static volatile bool s_reply;
 static char s_host[64];
 static bool s_task_running;
 
-// 收到 ICMP echo reply(type 0)就置位。回调在 lwIP 线程里,只写一个 flag。
-static u8_t ping_recv(void *arg, struct raw_pcb *pcb, struct pbuf *p,
-                      const ip_addr_t *addr)
-{
-    (void)arg; (void)pcb; (void)addr;
-    if (p->tot_len >= sizeof(struct icmp_echo_hdr)) {
-        struct icmp_echo_hdr *icmp = (struct icmp_echo_hdr *)p->payload;
-        if (icmp->type == ICMP_ER) s_reply = true;
-    }
-    pbuf_free(p);
-    return 1;   // 已消费
-}
-
-// 域名 → IPv4。走 lwIP 的 DNS(getaddrinfo 内部就是 DNS 查询)。
-static bool resolve_ipv4(const char *host, ip_addr_t *out)
+// 域名 → sockaddr_in。getaddrinfo 内部走 lwIP DNS。
+static bool resolve_ipv4(const char *host, struct sockaddr_in *out)
 {
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -47,9 +29,7 @@ static bool resolve_ipv4(const char *host, ip_addr_t *out)
     hints.ai_socktype = SOCK_STREAM;
     struct addrinfo *res = NULL;
     if (getaddrinfo(host, "80", &hints, &res) != 0 || res == NULL) return false;
-    const struct sockaddr_in *sin = (const struct sockaddr_in *)res->ai_addr;
-    const uint8_t *o = (const uint8_t *)&sin->sin_addr;
-    IP_ADDR4(out, o[0], o[1], o[2], o[3]);
+    memcpy(out, res->ai_addr, sizeof(*out));
     freeaddrinfo(res);
     return true;
 }
@@ -57,49 +37,47 @@ static bool resolve_ipv4(const char *host, ip_addr_t *out)
 static void ping_task(void *arg)
 {
     (void)arg;
-    ip_addr_t dest;
-    if (!resolve_ipv4(s_host, &dest)) {
+    struct sockaddr_in addr;
+    if (!resolve_ipv4(s_host, &addr)) {
         ESP_LOGW(TAG, "解析失败:%s", s_host);
         s_state = NP_PING_NOHOST;
         goto done;
     }
-    struct raw_pcb *pcb = raw_new(IP_PROTO_ICMP);
-    if (pcb == NULL) {
-        s_state = NP_PING_FAIL;
-        goto done;
-    }
-    raw_recv(pcb, ping_recv, NULL);
 
-    const u16_t LEN = sizeof(struct icmp_echo_hdr) + 16;   // 8 头 + 16 负载
-    struct pbuf *pb = pbuf_alloc(PBUF_IP, LEN, PBUF_RAM);
-    if (pb == NULL) {
-        raw_remove(pcb);
+    int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (fd < 0) {
         s_state = NP_PING_FAIL;
         goto done;
     }
-    struct icmp_echo_hdr *icmp = (struct icmp_echo_hdr *)pb->payload;
-    icmp->type = ICMP_ECHO;
-    icmp->code = 0;
-    icmp->chksum = 0;
-    icmp->id = lwip_htons(0x1234);
-    icmp->seqno = lwip_htons(1);
-    memset((u8_t *)pb->payload + sizeof(struct icmp_echo_hdr), 0,
-           LEN - sizeof(struct icmp_echo_hdr));
-    icmp->chksum = inet_chksum(icmp, LEN);
+    const int fl = fcntl(fd, F_GETFL, 0);
+    if (fl >= 0) (void)fcntl(fd, F_SETFL, fl | O_NONBLOCK);
 
-    s_reply = false;
-    const err_t e = raw_sendto(pcb, pb, &dest);
-    pbuf_free(pb);
-    if (e != ERR_OK) {
-        raw_remove(pcb);
-        s_state = NP_PING_FAIL;
-        goto done;
+    bool ok = false;
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+        ok = true;   // 非阻塞下立即成功(本机已有通路)
+    } else if (errno == EINPROGRESS) {
+        for (int i = 0; i < 60; i++) {          // 上限 3 s(60 × 50 ms)
+            fd_set wr, ex;
+            FD_ZERO(&wr);
+            FD_SET(fd, &wr);
+            FD_ZERO(&ex);
+            FD_SET(fd, &ex);
+            struct timeval tv = { .tv_sec = 0, .tv_usec = 50 * 1000 };
+            const int r = select(fd + 1, NULL, &wr, &ex, &tv);
+            if (r > 0) {
+                if (FD_ISSET(fd, &ex)) break;   // 选中的是异常:判失败
+                int soerr = 0;
+                socklen_t sl = sizeof(soerr);
+                getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl);
+                ok = (soerr == 0);
+                break;
+            }
+            if (r < 0 && errno != EINTR) break;
+        }
     }
-    // 最多等 1500 ms(30 × 50 ms)收一个 echo reply。
-    for (int i = 0; i < 30 && !s_reply; i++) vTaskDelay(pdMS_TO_TICKS(50));
-    raw_remove(pcb);
-    s_state = s_reply ? NP_PING_OK : NP_PING_FAIL;
-    ESP_LOGI(TAG, "ping %s -> %s", s_host, s_reply ? "ok" : "fail");
+    close(fd);
+    s_state = ok ? NP_PING_OK : NP_PING_FAIL;
+    ESP_LOGI(TAG, "connect %s -> %s", s_host, ok ? "ok" : "fail");
 
 done:
     s_task_running = false;

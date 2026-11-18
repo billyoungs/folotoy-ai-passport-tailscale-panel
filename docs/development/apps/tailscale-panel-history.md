@@ -1106,7 +1106,34 @@ content-addressed `build/firmware/<sha256>/` bundles.
   `192.168.1.1/24`-style addressing; *Internet access* flips to success within
   ~2 s when online).
 
-## Standing deferrals (as of np-0.3.2)
+## np-0.3.3 — fix(settings): slash mask visible; internet probe via TCP connect
+
+- First on-device round on np-0.3.2: screen lights up and the network-status
+  page renders. Two defects fixed here. (1) The subnet mask rendered only as a
+  bare `/`: `esp_netif` reports addresses in network byte order and
+  `ip4_addr_get_u32` reads them byte-swapped on this little-endian part
+  (`255.255.255.0` came out `0x00FFFFFF`), which the leading-bits counter
+  judged an invalid mask. The mask is now passed through `lwip_ntohl` first,
+  so the row reads `192.168.1.x/24` style. (2) *Internet access* showed
+  failure on a network with working internet: the raw-ICMP echo probe is at
+  the mercy of carrier/NAT ICMP filtering. The probe is now a non-blocking TCP
+  connect to `www.baidu.com` port 80 with a 3 s budget, on the same lwIP
+  socket path the app's HTTP client uses. Font inventory 1011 → 1016
+  (comment wording). Note on delivery: the first np-0.3.2 flash via the
+  browser flasher's single-file mode left a broken layout (bootloader at
+  0x0, image start rewritten at 0x8000 — partition table invalid, boot loop);
+  the standard multi-file write (bootloader 0x0 / partition table 0x8000 /
+  app 0x10000) booted normally.
+- `--static` PASS (Host tests PASS; inventory 1016 consistent). Image
+  `build/FoloToy-AI-Passport-full-np-0.3.3.bin`, 2081232 bytes, sha256
+  `72fd22d23a6cbf7ed0fa01802c6d97da74b59ed58bc8b26ddae416bbb7466416`;
+  app ELF `f15f45d930f0103b150e99a5e54e3d98871866c3a86d3645992a8ee33b20f303`;
+  map `.dram0.bss` `0x1b5c8` unchanged, `work_mem_int` `0x10000` unchanged.
+  Firmware version gate: PASS (np-0.3.3). **Awaiting a device flash** (check:
+  IP row shows `/24`-style mask; *Internet access* reads success on a
+  working network).
+
+## Standing deferrals (as of np-0.3.3)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -1130,7 +1157,9 @@ content-addressed `build/firmware/<sha256>/` bundles.
   header weekday, 2 h default sleep), np-0.3.0 (settings firmware line,
   AOD `x|y`), np-0.3.1 (network-status subpage with live ping) and np-0.3.2
   (status first, merged IP/mask, *Internet access* label) await a device
-  flash.
+  flash. np-0.3.2 has now been flashed and the network-status page verified
+  on hardware; its two defects (missing slash mask, false-negative internet
+  probe) are fixed in np-0.3.3, which awaits its own flash.
 
 ## Repository rename (2026-11-09)
 

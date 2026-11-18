@@ -967,10 +967,10 @@ stripped — so the running build is identifiable without a serial console
   press). The status page, reached via OK on a detail page, keeps its menu as
   well. Since `np-0.3.2` the first row, *Network status*, opens a read-only
   page showing: connection state, Wi-Fi SSID, IPv4 address with the subnet
-  mask in slash notation (`192.168.1.1/24`), gateway, DNS server, and a live
-  ICMP ping to `www.baidu.com` labelled *Internet access* (success when the
-  ping is answered, failure otherwise). OK re-runs the ping; OK long-press
-  returns to the network-config submenu.
+  mask in slash notation (`192.168.1.1/24`), gateway, DNS server, and a
+  TCP-connect probe to `www.baidu.com` port 80 labelled *Internet access*
+  (success when the handshake completes, failure otherwise). OK re-runs the
+  probe; OK long-press returns to the network-config submenu.
 - The sleep check runs only in the normal RUN state, driven by the 1-second
   tick of `app_task`; provisioning and hotspot pages never sleep. Any key wakes:
   the backlight is restored to the remembered pre-AOD brightness, blank mode

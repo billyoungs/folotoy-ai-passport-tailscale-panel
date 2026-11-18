@@ -14,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
+#include "lwip/def.h"
 #include "lwip/ip4_addr.h"
 
 #include "np_link.h"
@@ -545,8 +546,10 @@ void app_wifi_net_info(app_wifi_net_t *out)
     snprintf(out->ip, sizeof(out->ip), IPSTR, IP2STR(&info.ip));
     snprintf(out->gw, sizeof(out->gw), IPSTR, IP2STR(&info.gw));
     // 掩码按主机序交给纯逻辑数连续高位 1(bits 31.. 是网络最高位)。
-    np_net_format_prefix(ip4_addr_get_u32(&info.netmask), out->prefix,
-                         sizeof(out->prefix));
+    // esp_netif 的地址是网络字节序,ip4_addr_get_u32 在 LE 芯片上读出来是字节
+    // 反的(255.255.255.0 → 0x00FFFFFF),先用 lwip_ntohl 换回主机序。
+    np_net_format_prefix(lwip_ntohl(ip4_addr_get_u32(&info.netmask)),
+                         out->prefix, sizeof(out->prefix));
 }
 
 const char *app_wifi_dns_str(char *out, size_t cap)

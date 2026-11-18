@@ -1,20 +1,16 @@
-// main/np_ping.h —— 即时 ping(ICMP echo)一个域名,结果只报通/不通。
-// 工作任务里跑,不阻塞 GUI;GUI 线程轮询状态即可。纯网络副作用,不碰 LVGL。
+// main/np_ping.h —— 互联网访问探测:到固定主机做一次 TCP 连接,只报通/不通。
 #pragma once
 
 #include <stdbool.h>
 
 typedef enum {
-    NP_PING_IDLE = 0,   // 还没测过
-    NP_PING_BUSY,       // 正在检测
-    NP_PING_OK,         // 收到 echo reply:通
-    NP_PING_FAIL,       // 超时 / 发送失败:不通
-    NP_PING_NOHOST,     // 域名解析失败(等同没有网络)
+    NP_PING_IDLE = 0,  // 还没发起过
+    NP_PING_BUSY,      // 正在探(解析/握手)
+    NP_PING_OK,        // 握手成功
+    NP_PING_FAIL,      // 握手失败或超时
+    NP_PING_NOHOST,    // 域名解析失败
 } np_ping_state_t;
 
-// 异步启动一次 ping(工作任务里跑)。已在检测中则不重复启动,返回 false。
-// host 会拷贝保存,调用方无需保持生命周期。
+// 异步发起一次探测(重复调用在她还 BUSY 时会被拒,返回 false)。
 bool np_ping_start(const char *host);
-
-// 当前状态(供 GUI 线程轮询)。线程安全:只读一个 volatile 枚举。
 np_ping_state_t np_ping_state(void);
