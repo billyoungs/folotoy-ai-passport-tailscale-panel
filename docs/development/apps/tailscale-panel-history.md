@@ -1087,7 +1087,26 @@ content-addressed `build/firmware/<sha256>/` bundles.
   settings → network config → fifth row "Network status" opens the info page;
   ping result appears within ~2 s; OK re-pings; long-press returns to submenu).
 
-## Standing deferrals (as of np-0.3.1)
+## np-0.3.2 — feat(settings): network status first, IP/mask merged, ping renamed
+
+- Timeout-feedback round on the np-0.3.1 network-status page: *Network status*
+  moved to the first row of the network-config submenu (the four provisioning
+  actions follow it); the IPv4 address and subnet mask are one row in slash
+  notation (`192.168.1.1/24`); the ping row is labelled *Internet access* and
+  reads success when `www.baidu.com` answers, failure otherwise (the
+  resolve-failure distinction is no longer shown on this page).
+- `--static` PASS (Host tests PASS; inventory 1011 consistent — renamed
+  labels introduced no new glyphs, fonts unchanged). Image
+  `build/FoloToy-AI-Passport-full-np-0.3.2.bin`, 2079760 bytes, sha256
+  `417b53a82482c1966b549f8b1b2ffdecd58dc58cd1b9dcc620c049def758fed8`;
+  app ELF `7cb8e25b2084c6ef7b2d7e22294d1b2dd0cc679c00e6f3dcc56686db0d8c57ba`;
+  map `.dram0.bss` `0x1b5c8` unchanged, `work_mem_int` `0x10000` unchanged.
+  Firmware version gate: PASS (np-0.3.2). **Awaiting a device flash** (check:
+  network config opens with *Network status* as the first row; the page shows
+  `192.168.1.1/24`-style addressing; *Internet access* flips to success within
+  ~2 s when online).
+
+## Standing deferrals (as of np-0.3.2)
 
 - SNTP mechanism rework: the three fire-and-forget `esp_sntp_*` calls, the lwIP
   assertion behind `sntp_setoperatingmode`, and `CONFIG_LWIP_SNTP_MAX_SERVERS=2`
@@ -1109,8 +1128,9 @@ content-addressed `build/firmware/<sha256>/` bundles.
   brightness handling), np-0.2.16 (the brightness adjustment bar),
   np-0.2.17 (AOD date line and inline mark), np-0.2.18 (list scrollbar,
   header weekday, 2 h default sleep), np-0.3.0 (settings firmware line,
-  AOD `x|y`) and np-0.3.1 (network-status subpage with live ping) await a
-  device flash.
+  AOD `x|y`), np-0.3.1 (network-status subpage with live ping) and np-0.3.2
+  (status first, merged IP/mask, *Internet access* label) await a device
+  flash.
 
 ## Repository rename (2026-11-09)
 

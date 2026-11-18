@@ -964,7 +964,7 @@ static void netstat_ping_render(void)
     switch (np_ping_state()) {
     case NP_PING_BUSY:   txt = "检测中...";        col = UI_MUTED;  break;
     case NP_PING_OK:     txt = "成功";             col = UI_ONLINE; break;
-    case NP_PING_NOHOST: txt = "失败(域名解析失败)"; col = UI_ERROR;  break;
+    case NP_PING_NOHOST: txt = "失败";             col = UI_ERROR;  break;
     case NP_PING_FAIL:   txt = "失败";             col = UI_ERROR;  break;
     default:             txt = "-";               col = UI_MUTED;  break;
     }
@@ -1079,7 +1079,7 @@ static void paint_settings(void)
             lv_obj_t *lb = lv_label_create(row);
             lv_obj_set_style_text_font(lb, &s_font14, 0);
             lv_obj_set_style_text_color(lb, lv_color_hex(sel ? UI_TEXT : UI_MUTED), 0);
-            lv_label_set_text(lb, (i < NP_MENU_COUNT) ? ACTS[i] : "网络状态");
+            lv_label_set_text(lb, (i == 0) ? "网络状态" : ACTS[i - 1]);
             lv_obj_center(lb);
         }
         settings_hint("上下选择 确定执行 长按返回");
@@ -1101,11 +1101,13 @@ static void paint_settings(void)
         const int step = 30;
         netstat_kv("连接状态", net.has_ip ? "已连接" : (up ? "已关联,无地址" : "未连接"), y); y += step;
         netstat_kv("WiFi 名称", (ssid && ssid[0]) ? ssid : "-", y); y += step;
-        netstat_kv("IP 地址", net.has_ip ? net.ip : "-", y); y += step;
-        netstat_kv("子网掩码", net.has_ip ? net.prefix : "-", y); y += step;
+        char ipmask[24];
+        if (net.has_ip) snprintf(ipmask, sizeof(ipmask), "%s%s", net.ip, net.prefix);
+        else snprintf(ipmask, sizeof(ipmask), "-");
+        netstat_kv("IP 地址", ipmask, y); y += step;
         netstat_kv("网关地址", (net.has_ip && net.gw[0]) ? net.gw : "-", y); y += step;
         netstat_kv("DNS 地址", dns[0] ? dns : "-", y); y += step;
-        s_netstat_ping = netstat_kv("Ping 百度", "-", y);
+        s_netstat_ping = netstat_kv("互联网访问", "-", y);
 
         if (np_ping_state() != NP_PING_BUSY) (void)np_ping_start("www.baidu.com");
         netstat_ping_render();
@@ -1416,11 +1418,11 @@ np_key_result_t np_ui_handle_key(bsp_btn_t btn, bsp_btn_ev_t ev)
                 s_net_sel++;
                 paint_settings();
             } else if (btn == BSP_BTN_OK) {
-                if (s_net_sel == NP_MENU_COUNT) {
+                if (s_net_sel == 0) {
                     s_settings_mode = SET_NETSTAT;
                     paint_settings();
                 } else {
-                    switch (np_menu_activate(s_net_sel)) {
+                    switch (np_menu_activate(s_net_sel - 1u)) {
                     case NP_MENU_SYNC: return NP_KEY_ACTION_SYNC;
                     case NP_MENU_LAN:  return NP_KEY_ACTION_PROV;
                     case NP_MENU_AP:   return NP_KEY_ACTION_AP;
